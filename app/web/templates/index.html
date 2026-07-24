@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>compy-ui — 문제집→슬라이드→음성→MP4</title>
+<style>
+  /* Pretendard (본문 글꼴) — CDN, 미접속 시 시스템 설치본/시스템 폰트로 폴백 */
+  @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
+  /* Notion-style light mode + 제품급 토큰 (from _context/design.md) */
+  :root {
+    /* surfaces */
+    --bg:#f6f5f4;            /* warm paper canvas */
+    --card:#ffffff;          /* surface */
+    --line:#e6e6e6;          /* hairline */
+    --field:#dddddd;         /* input border */
+    /* ink ramp */
+    --fg:rgba(0,0,0,.95); --ink2:#31302e; --mut:#615d59; --faint:#a39e98;
+    /* single structural accent */
+    --acc:#0075de; --acc-active:#005bab; --acc-soft:#eef4fc;
+    /* semantic status (의미 기반) — 상태에만, 시리즈색으로 재사용 금지 */
+    --success:#1aae39; --success-bg:#e9f7ec; --success-bd:#bce6c6;
+    --warning:#b45309; --warning-bg:#fbf1e5; --warning-bd:#f0d9b8;
+    --danger:#c0392b;  --danger-bg:#fbece9;  --danger-bd:#f0c8c1;
+    --info:#0075de;    --info-bg:#eef4fc;     --info-bd:#cfe0f7;
+    --neutral:#615d59; --neutral-bg:#f0efee;  --neutral-bd:#e0dedb;
+    /* aliases used by existing markup/JS */
+    --ok:var(--success); --bad:var(--danger); --warn:var(--warning);
+    /* decorative gradient boxes for icons (구조색 아님 — 장식) */
+    --grad-blue:linear-gradient(135deg,#4d9bff,#0075de);
+    --grad-violet:linear-gradient(135deg,#a78bfa,#6d28d9);
+    --grad-teal:linear-gradient(135deg,#5eead4,#0d9488);
+    --grad-amber:linear-gradient(135deg,#fbbf24,#d97706);
+    --grad-rose:linear-gradient(135deg,#fb7aa8,#e11d76);
+    /* spacing scale (8px base) */
+    --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:28px; --s7:32px; --s8:48px;
+    /* radius */
+    --r-xs:4px; --r-sm:6px; --r-md:8px; --r-lg:12px; --r-xl:16px; --r-full:9999px;
+    /* elevation (barely-there layered) */
+    --shadow1:0 .175px 1.041px rgba(0,0,0,.01), 0 .8px 2.925px rgba(0,0,0,.02),
+              0 2.025px 7.847px rgba(0,0,0,.027), 0 4px 18px rgba(0,0,0,.04);
+    --shadow2:0 1px 2px rgba(0,0,0,.03), 0 6px 16px rgba(0,0,0,.05), 0 23px 52px rgba(0,0,0,.05);
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font-family:"Pretendard Variable",Pretendard,Inter,-apple-system,system-ui,
+                     "Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+         font-size:15px; line-height:1.5; -webkit-font-smoothing:antialiased;
+         font-feature-settings:"lnum" 1; }
+  header { display:flex; align-items:center; gap:14px; padding:12px 24px; flex-wrap:wrap; row-gap:8px;
+           border-bottom:1px solid var(--line); background:var(--card); position:sticky; top:0; z-index:5; }
+  header h1 { font-size:22px; font-weight:700; margin:0; letter-spacing:-.25px; }
+  .grow { flex:1; }
+  /* 단계 표시(헤더 인라인): 대본→이미지→음성→합성, 완료 시 초록 */
+  .steps-inline { display:flex; align-items:center; gap:14px; padding-left:4px; }
+  .steps-inline .step { font-size:13px; }
+  @media(max-width:720px){ .steps-inline{ display:none } }  /* 좁으면 숨김(칩과 겹침 방지) */
+  /* 진행 상태 칩(헤더 고정, 항상 보임) + 스피너 */
+  .hdrstage { display:none; align-items:center; gap:8px; max-width:46vw; font-size:13px; font-weight:600;
+              color:var(--acc); background:var(--acc-soft); border:1px solid var(--info-bd);
+              border-radius:9999px; padding:6px 13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .hdrstage.on { display:inline-flex; }
+  .spin { flex:none; width:14px; height:14px; border:2px solid var(--info-bd); border-top-color:var(--acc);
+          border-radius:50%; animation:sp .8s linear infinite; }
+  @keyframes sp { to { transform:rotate(360deg); } }
+  /* utility buttons/fields: white surface, hairline, tight radius */
+  select, button, input, textarea { font:inherit; color:var(--fg); background:var(--card);
+           border:1px solid var(--line); border-radius:8px; padding:7px 12px; }
+  input, textarea { border-color:var(--field); border-radius:4px; padding:6px 8px; }
+  input::placeholder, textarea::placeholder { color:var(--faint); }
+  input:focus, textarea:focus, select:focus { outline:none; border-color:var(--acc);
+           box-shadow:0 0 0 3px rgba(0,117,222,.15); }
+  button { cursor:pointer; font-weight:500; transition:background .12s,border-color .12s,box-shadow .12s,transform .06s; }
+  button:hover { border-color:var(--acc); box-shadow:var(--shadow1); }
+  button:active { transform:scale(.98); }
+  button.primary { background:var(--acc); border-color:var(--acc); color:#fff; font-weight:600; }
+  button.primary:hover { background:var(--acc-active); border-color:var(--acc-active); }
+  button.big { padding:9px 18px; font-size:16px; border-radius:9999px; }  /* pill CTA */
+  button:disabled { opacity:.45; cursor:not-allowed; box-shadow:none; }
+  a { color:var(--acc); text-decoration:none; }
+  a:hover { text-decoration:underline; }
+  .steps { display:flex; gap:8px; align-items:center; padding:10px 24px;
+           border-bottom:1px solid var(--line); background:var(--card); }
+  .step { display:flex; align-items:center; gap:6px; color:var(--mut); font-size:14px; }
+  .dot { width:10px; height:10px; border-radius:50%; background:#d7d5d2; }
+  .step.done .dot { background:var(--ok); }
+  .step.done { color:var(--fg); font-weight:500; }
+  .sep { color:var(--faint); }
+  .bar { flex:1; height:8px; background:#ececec; border-radius:9999px; overflow:hidden; max-width:280px; }
+  .bar > i { display:block; height:100%; width:0; background:var(--acc); transition:width .3s; }
+  nav.tabs { display:flex; gap:4px; padding:8px 24px 0; border-bottom:1px solid var(--line); background:var(--card); }
+  .tab { background:transparent; border:none; border-bottom:2px solid transparent;
+         color:var(--mut); border-radius:0; padding:9px 14px; font-weight:500; }
+  .tab:hover { color:var(--fg); box-shadow:none; }
+  .tab.active { color:var(--acc); border-bottom-color:var(--acc); }
+  main { padding:24px; max-width:1080px; margin:0 auto; }
+  .panel { display:none; }
+  .panel.active { display:block; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px;
+          padding:24px; margin-bottom:16px; box-shadow:var(--shadow1); }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  table { width:100%; border-collapse:collapse; }
+  th,td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); font-size:14px; }
+  th { color:var(--mut); font-weight:600; font-size:12px; letter-spacing:.125px; text-transform:uppercase; }
+  .pill { font-size:12px; font-weight:600; padding:3px 9px; border-radius:9999px; border:1px solid var(--line); }
+  .pill.ok { background:rgba(26,174,57,.1); color:var(--ok); border-color:rgba(26,174,57,.25); }
+  .pill.bad { background:rgba(214,69,69,.1); color:var(--bad); border-color:rgba(214,69,69,.25); }
+  .thumbs { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:12px; }
+  .thumb { border:1px solid var(--line); border-radius:12px; overflow:hidden; background:var(--card); box-shadow:var(--shadow1); }
+  .thumb img { width:100%; height:90px; object-fit:cover; display:block; }
+  .thumb .cap { padding:5px 8px; font-size:12px; color:var(--mut); display:flex; justify-content:space-between; }
+  .miss { display:flex; align-items:center; justify-content:center; height:90px; color:var(--bad); font-size:12px; }
+  .muted { color:var(--mut); }
+  .log { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:12px;
+         font-family:"SFMono-Regular",Consolas,monospace; font-size:12px; height:160px;
+         overflow:auto; white-space:pre-wrap; color:var(--ink2); }
+  .toast { position:fixed; right:16px; bottom:16px; background:var(--card); border:1px solid var(--line);
+           border-left:4px solid var(--acc); padding:12px 14px; border-radius:12px; max-width:360px; box-shadow:var(--shadow2); }
+  .toast.bad { border-left-color:var(--bad); }
+  video { width:100%; border-radius:12px; background:#000; }
+  h3 { margin:0 0 14px; font-size:22px; font-weight:700; letter-spacing:-.25px; }
+  .pathbox { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:10px 12px;
+             margin-bottom:10px; font-size:13px; }
+  .pathbox .ph { color:var(--mut); margin-bottom:4px; }
+  .pathbox code { color:var(--acc); background:#eef4fc; padding:2px 6px; border-radius:5px;
+                  font-family:"SFMono-Regular",Consolas,monospace; word-break:break-all; }
+  .pathbox button { padding:3px 9px; font-size:12px; margin-left:6px; }
+  code { background:#eef4fc; color:var(--acc); padding:1px 5px; border-radius:4px;
+         font-family:"SFMono-Regular",Consolas,monospace; font-size:.92em; }
+  pre.srt { background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:8px 10px;
+            margin:6px 0 0; font-family:"SFMono-Regular",Consolas,monospace; font-size:12px; color:var(--ink2);
+            white-space:pre-wrap; max-height:160px; overflow:auto; }
+  .scard { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px;
+           margin-bottom:12px; box-shadow:var(--shadow1); }
+  .scard-head { display:flex; align-items:center; gap:10px; margin-bottom:8px; font-weight:700; }
+  .scard-head .dur { color:var(--mut); font-weight:400; font-size:12px; }
+  .twocol { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .twocol label { display:block; color:var(--mut); font-size:12px; margin-bottom:3px; }
+  .scard textarea { width:100%; background:var(--card); color:var(--fg); border:1px solid var(--field);
+                    border-radius:4px; padding:8px; font:inherit; resize:vertical; min-height:64px; }
+  .scard audio { width:100%; margin:8px 0; height:34px; }
+  .cuehead { display:flex; align-items:center; gap:8px; margin:6px 0; color:var(--mut); font-size:13px; }
+  .cuehead .grow { flex:1; }
+  .cuerow { display:grid; grid-template-columns:92px 92px 1fr 28px; gap:6px; margin-bottom:5px; align-items:center; }
+  .cuerow input { background:var(--card); color:var(--fg); border:1px solid var(--field); border-radius:4px; padding:5px 7px; font:inherit; }
+  .cuerow .del { padding:3px 8px; }
+  .cuerow.active input { border-color:var(--acc); box-shadow:0 0 0 2px rgba(0,117,222,.15); }
+  /* subtitle preview keeps a dark 'video' background so white captions read true */
+  .cuepv { background:#111; border:1px solid var(--line); border-radius:12px; min-height:64px;
+           display:flex; align-items:center; justify-content:center; text-align:center;
+           padding:12px 16px; margin:8px 0; }
+  .cuepv-text { color:#fff; font-size:18px; font-weight:600; line-height:1.4;
+                text-shadow:0 1px 3px #000; }
+  .cuepv-text:empty::before { content:'▶ 재생하면 현재 자막이 여기 표시됩니다'; color:#8a8f98; font-weight:400; font-size:13px; }
+  /* ── 아이콘 체계: 그라데이션 박스 + 단색 라인 아이콘 ── */
+  .ico { display:inline-flex; align-items:center; justify-content:center; flex:none;
+         width:36px; height:36px; border-radius:10px; color:#fff; background:var(--grad-blue);
+         box-shadow:var(--shadow1); }
+  .ico svg { width:20px; height:20px; stroke:currentColor; stroke-width:1.8;
+             fill:none; stroke-linecap:round; stroke-linejoin:round; }
+  .ico.sm { width:26px; height:26px; border-radius:8px; }
+  .ico.sm svg { width:15px; height:15px; }
+  .ico.v{background:var(--grad-violet)} .ico.t{background:var(--grad-teal)}
+  .ico.a{background:var(--grad-amber)} .ico.r{background:var(--grad-rose)}
+  .ico.ghost{background:var(--acc-soft); color:var(--acc); box-shadow:none}
+  /* line icon inside buttons/inline (currentColor, no box) */
+  .li { width:16px; height:16px; stroke:currentColor; stroke-width:1.8; fill:none;
+        stroke-linecap:round; stroke-linejoin:round; vertical-align:-3px; margin-right:6px; }
+  /* ── 섹션 헤더 ── */
+  .section-head { display:flex; align-items:center; gap:12px; margin-bottom:16px; }
+  .section-head h3 { margin:0; }
+  .eyebrow { font-size:12px; font-weight:600; letter-spacing:.06em; text-transform:uppercase;
+             color:var(--acc); margin-bottom:2px; }
+  .section-head .sub { color:var(--mut); font-size:13px; margin-top:2px; }
+  /* ── 상태 점(의미 기반) ── */
+  .sdot { display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--neutral);
+          margin-right:7px; vertical-align:0px; box-shadow:0 0 0 3px rgba(0,0,0,.04); }
+  .sdot.ok{background:var(--success)} .sdot.warn{background:var(--warning)}
+  .sdot.bad{background:var(--danger)} .sdot.info{background:var(--info)}
+  .statusline{ display:inline-flex; align-items:center; font-size:13px; color:var(--ink2); }
+  /* ── 랜딩 히어로 (분할) ── */
+  .hero { display:grid; grid-template-columns:1.05fr .95fr; gap:16px; margin-bottom:16px; }
+  .hero-left { background:linear-gradient(135deg,#213183,#0075de); color:#fff;
+               border-radius:16px; padding:28px; box-shadow:var(--shadow2); position:relative; overflow:hidden; }
+  .hero-left::after{ content:""; position:absolute; right:-60px; top:-60px; width:220px; height:220px;
+               border-radius:50%; background:radial-gradient(circle,rgba(255,255,255,.18),transparent 70%); }
+  .hero-left .kicker{ font-size:12px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;
+               opacity:.85; }
+  .hero-left h2 { font-size:30px; font-weight:700; letter-spacing:-.8px; line-height:1.15; margin:10px 0 8px; }
+  .hero-left p { color:rgba(255,255,255,.86); font-size:15px; margin:0 0 18px; max-width:42ch; }
+  .flow { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:13px; }
+  .flow .node{ display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,.14);
+               border:1px solid rgba(255,255,255,.22); border-radius:9999px; padding:5px 11px; }
+  .flow .arrow{ opacity:.6 }
+  .hero-right { background:var(--card); border:1px solid var(--line); border-radius:16px;
+               padding:20px; box-shadow:var(--shadow1); }
+  /* ── 스탯 타일 ── */
+  .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:14px; }
+  .stat { background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+  .stat .k { font-size:12px; color:var(--mut); display:flex; align-items:center; gap:5px; }
+  .stat .v { font-size:24px; font-weight:700; letter-spacing:-.5px; margin-top:3px; }
+  .stat .v small { font-size:13px; font-weight:500; color:var(--mut); }
+  /* ── 인라인 SVG 차트 ── */
+  .chart { width:100%; }
+  .chart .lbl { font-size:10px; fill:var(--faint); }
+  .chart .val { font-size:10px; fill:var(--mut); font-weight:600; }
+  .chart-title { font-size:12px; color:var(--mut); font-weight:600; margin:6px 0 4px; }
+  .minithumbs { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+  .minithumbs img, .minithumbs .mm { width:44px; height:30px; border-radius:6px; object-fit:cover;
+               border:1px solid var(--line); }
+  .minithumbs .mm { display:flex; align-items:center; justify-content:center; background:var(--neutral-bg);
+               color:var(--faint); font-size:10px; }
+  @media(max-width:860px){ .hero{grid-template-columns:1fr} .stats{grid-template-columns:repeat(2,1fr)} }
+  @media(max-width:760px){ .twocol{grid-template-columns:1fr} main{padding:16px} }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-film" viewBox="0 0 24 24"><path d="M3 8h18v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M3 8l2.5-4h13L21 8"/><path d="M8 4l-1.6 4M13 4l-1.6 4M18 4l-1.6 4"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/></symbol>
+  <symbol id="i-magic" viewBox="0 0 24 24"><path d="M12 3l1.8 4.5L18 9l-4.2 1.5L12 15l-1.8-4.5L6 9l4.2-1.5z"/><path d="M18.5 14l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5L5 20"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0"/><path d="M12 17v4M9 21h6"/></symbol>
+  <symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v15H6a2 2 0 0 0-2 2z"/><path d="M19 18H6"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8"/><path d="M20 4v4h-4"/><path d="M20 12a8 8 0 0 1-13.7 5.6L4 16"/><path d="M4 20v-4h4"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M17 6l2 2M14 9l2 2"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M5 21h14"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></symbol>
+</defs></svg>
+<header>
+  <h1><span class="ico sm" style="vertical-align:-8px"><svg><use href="#i-film"/></svg></span> compy-ui</h1>
+  <select id="bundleSel" title="번들 선택"></select>
+  <button id="refreshBtn" title="상태 새로고침"><svg class="li" style="margin-right:0"><use href="#i-refresh"/></svg></button>
+  <button id="newBtn"><svg class="li"><use href="#i-plus"/></svg>새 번들</button>
+  <span class="steps-inline" id="steps">
+    <span class="step" data-k="script"><span class="dot"></span>대본</span>
+    <span class="step" data-k="images"><span class="dot"></span>이미지</span>
+    <span class="step" data-k="audio"><span class="dot"></span>음성</span>
+    <span class="step" data-k="render"><span class="dot"></span>합성</span>
+  </span>
+  <span class="grow"></span>
+  <span id="hdrStage" class="hdrstage"></span>
+  <a href="/dict" target="_blank" rel="noopener"><svg class="li"><use href="#i-book"/></svg>발음 사전</a>
+  <button id="oneclickBtn" class="primary big" disabled>⚡ 한 번에 만들기</button>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="script"><svg class="li"><use href="#i-doc"/></svg>1 대본</button>
+  <button class="tab" data-tab="images"><svg class="li"><use href="#i-image"/></svg>2 이미지</button>
+  <button class="tab" data-tab="audio"><svg class="li"><use href="#i-mic"/></svg>3 음성/자막</button>
+  <button class="tab" data-tab="result"><svg class="li"><use href="#i-video"/></svg>4 결과</button>
+</nav>
+
+<main>
+  <section class="hero" id="hero">
+    <div class="hero-left">
+      <div class="kicker">Local Slides · Supertonic3 · ffmpeg</div>
+      <h2>대본 한 편이 다큐 영상이 되기까지</h2>
+      <p>문제집(JSON)을 로컬 슬라이드, Supertonic3 음성/자막, ffmpeg 합성까지 —
+         이 PC 안에서 버튼 몇 개로. 클라우드 없이, API 키 없이.</p>
+      <div class="flow">
+        <span class="node"><svg class="li" style="margin:0"><use href="#i-doc"/></svg> 대본</span>
+        <span class="arrow">→</span>
+        <span class="node"><svg class="li" style="margin:0"><use href="#i-image"/></svg> 이미지·영상</span>
+        <span class="arrow">→</span>
+        <span class="node"><svg class="li" style="margin:0"><use href="#i-mic"/></svg> 음성·자막</span>
+        <span class="arrow">→</span>
+        <span class="node"><svg class="li" style="margin:0"><use href="#i-video"/></svg> MP4</span>
+      </div>
+    </div>
+    <div class="hero-right" id="heroPreview">
+      <div class="muted">번들을 선택하면 진행 상황이 여기 표시됩니다.</div>
+    </div>
+  </section>
+
+  <section class="panel active" id="p-script">
+    <div class="card">
+      <div class="section-head">
+        <span class="ico"><svg><use href="#i-book"/></svg></span>
+        <div><div class="eyebrow">Step 1 · Lesson</div><h3>문제집 / 강의 (lesson JSON)</h3></div>
+      </div>
+      <p class="muted">문제·보기·정답·해설(+앞부분 개념 강의)을 담은 <code>lesson JSON</code>을 붙여넣거나 파일로 불러와 저장하면
+        <b>슬라이드용 씬</b>으로 자동 변환됩니다. 샘플: <code>samples/lesson_1.json · lesson_5.json · lesson_10.json</code>.
+        블록 종류: <code>section</code> · <code>concept</code> · <code>ox</code> · <code>table</code> · <code>problem</code>. 색상은 <code>theme</code>(과목/회차별)로 지정.</p>
+      <div class="row" style="margin-top:8px">
+        <button id="lessonLoadBtn" type="button"><svg class="li"><use href="#i-doc"/></svg>JSON 파일 불러오기</button>
+        <input type="file" id="lessonFile" accept=".json" style="display:none">
+        <span id="lessonInfo" class="muted">문제집이면 이 카드를, 일반 다큐 대본이면 아래 [대본 자동 생성]을 쓰세요.</span>
+      </div>
+      <textarea id="lessonJson" placeholder='{ "kind":"lesson", "chapter":1, "title":"...", "theme":"sqld", "blocks":[ {"kind":"problem","number":1,"question":"...","choices":["..."],"answer":"②","answer_index":1,"explanation":"..."} ] }' style="width:100%;min-height:150px;margin-top:8px;font-family:Consolas,monospace;font-size:12px"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button id="saveLessonBtn" class="primary">🧩 레슨 저장 → 씬 변환</button>
+        <span class="muted">변환 후 [2 이미지] 탭에서 🖼 슬라이드 생성 → ⚡ 한 번에 만들기.</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-head">
+        <span class="ico v"><svg><use href="#i-magic"/></svg></span>
+        <div><div class="eyebrow">Step 1 · Script (다큐)</div><h3>대본 자동 생성</h3></div>
+      </div>
+      <div class="row">
+        <span id="llmBadge" class="muted">LLM 상태 확인 중…</span>
+        <select id="llmProvider" title="공급자 선택">
+          <option value="codex">OpenAI (ChatGPT)</option>
+          <option value="agy">Gemini (Google)</option>
+        </select>
+        <button id="llmLoginBtn" title="새 콘솔에서 로그인">🔑 로그인</button>
+        <button id="llmRefreshBtn">🔄</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label class="muted">분량(분) <input id="genMinutes" type="number" min="3" max="45" value="15" style="width:64px"></label>
+        <label class="muted">이미지(씬) 수 <input id="genImages" type="number" min="0" max="120" value="0" placeholder="자동" style="width:72px"></label>
+        <label class="muted">글자수 목표 <input id="genChars" type="number" min="0" value="0" placeholder="자동" style="width:88px"></label>
+        <label class="muted">제목 <input id="genTitle" type="text" placeholder="(자동)" style="width:180px"></label>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button id="genAttachBtn" type="button"><svg class="li"><use href="#i-doc"/></svg>PDF/텍스트 첨부</button>
+        <span id="genAttachInfo" class="muted">이 장(chapter)의 PDF·txt 를 드래그해 넣거나 첨부 → 본문 자동 추출</span>
+        <input type="file" id="genFile" accept=".pdf,.txt,.md,.markdown,.csv" multiple style="display:none">
+      </div>
+      <textarea id="genTopic" placeholder="주제 또는 책 본문(근거 자료)을 붙여넣으세요 — 또는 여기로 PDF/txt 를 드래그&드롭. 이 내용에 충실하게 대본을 생성합니다." style="width:100%;min-height:120px;margin-top:8px"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button id="genScriptBtn" class="primary">📝 대본 생성 → script/ 저장</button>
+        <span class="muted">생성 후 아래 [대본 JSON]에서 확인·편집할 수 있습니다.</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-head">
+        <span class="ico ghost"><svg><use href="#i-doc"/></svg></span>
+        <div><div class="eyebrow" style="color:var(--mut)">Bundle</div><h3>대본 JSON</h3></div>
+      </div>
+      <div id="pathBox" class="pathbox" style="display:none"></div>
+      <p class="muted">위에서 자동 생성하거나, Claude/외부에서 만든 <code>chNN_script.json</code>(또는 문제집 lesson JSON)을 아래에 붙여넣어 저장하세요.</p>
+      <details style="margin-bottom:8px"><summary class="muted">대본 JSON 직접 붙여넣기/편집</summary>
+        <textarea id="scriptJson" placeholder='{ "version":"1.0", "chapter":1, "scenes":[ ... ] }' style="width:100%;min-height:160px;margin-top:6px;font-family:Consolas,monospace;font-size:12px"></textarea>
+        <div class="row" style="margin-top:6px"><button id="saveScriptBtn" class="primary">💾 대본 JSON 저장</button></div>
+      </details>
+      <div id="scriptInfo" class="muted">번들을 선택하세요.</div>
+      <table id="sceneTable" style="display:none"><thead>
+        <tr><th>씬</th><th>제목</th><th>예상(초)</th><th>이미지</th><th>음성</th></tr>
+      </thead><tbody></tbody></table>
+    </div>
+  </section>
+
+  <section class="panel" id="p-images">
+    <div class="card">
+      <div class="section-head">
+        <span class="ico t"><svg><use href="#i-image"/></svg></span>
+        <div><div class="eyebrow" style="color:#0d9488">Step 2 · Slides</div><h3>슬라이드 (문제집/강의)</h3></div>
+      </div>
+      <div class="row" style="margin-top:8px;padding:10px;background:var(--acc-soft);border:1px solid var(--info-bd);border-radius:10px">
+        <button id="slideBtn" class="primary">🖼 슬라이드 생성 (문제집/강의)</button>
+        <label class="muted"><input type="checkbox" id="motionChk" checked> 요소 순차 등장 모션</label>
+        <span class="muted">문제/보기/정답/해설 슬라이드를 로컬 렌더합니다 (ComfyUI 불필요). 레슨 저장 후 사용.</span>
+      </div>
+      <details style="margin-top:6px"><summary class="muted">대안: 미리 만든 이미지를 Downloads에서 가져오기</summary>
+        <div class="row" style="margin-top:6px">
+          <label class="muted">중복 시 선택:
+            <select id="preferSel"><option value="latest">최신</option><option value="earliest">처음 것</option></select>
+          </label>
+          <button id="importBtn">📥 Downloads에서 가져오기</button>
+        </div>
+      </details>
+      <div class="thumbs" id="thumbs" style="margin-top:12px"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="p-audio">
+    <div class="card">
+      <div class="section-head">
+        <span class="ico a"><svg><use href="#i-mic"/></svg></span>
+        <div><div class="eyebrow" style="color:#b45309">Step 3 · Voice</div><h3>음성 · 자막 (로컬 Supertonic3)</h3></div>
+      </div>
+      <div class="row">
+        <button id="synthBtn" class="primary">🔊 전체 음성/자막 생성</button>
+        <button id="synthAiBtn">🔤 AI 발음으로 전체 음성 생성</button>
+        <a href="/dict" target="_blank" rel="noopener"><button>📖 발음 사전 편집</button></a>
+      </div>
+      <p class="muted" style="margin-top:6px">🔤 AI 발음 = 숫자·영어를 소리 나는 대로 한글로 바꿔(CREATE→크리에이트) 읽습니다. 세부 예외는 발음 사전에 단어 추가 → 그 씬만 🔁 재생성.</p>
+    </div>
+    <div id="sceneCards"></div>
+  </section>
+
+  <section class="panel" id="p-result">
+    <div class="card">
+      <div class="section-head">
+        <span class="ico r"><svg><use href="#i-video"/></svg></span>
+        <div><div class="eyebrow" style="color:#e11d76">Step 4 · Render</div><h3>결과 (MP4 합성)</h3></div>
+      </div>
+      <div class="row">
+        <button id="dryBtn">🔍 검증만 (dry-run)</button>
+        <button id="renderBtn" class="primary">🎬 풀 렌더</button>
+        <button id="clearBtn">🗑 기존 결과 삭제</button>
+      </div>
+      <div id="resultBox" style="margin-top:12px" class="muted">아직 합성된 영상이 없습니다.</div>
+    </div>
+
+    <div class="card">
+      <div class="section-head">
+        <span class="ico r"><svg><use href="#i-video"/></svg></span>
+        <div><div class="eyebrow" style="color:#e11d76">Upload</div><h3>유튜브 업로드용 글</h3></div>
+      </div>
+      <div class="row">
+        <button id="ytBtn" class="primary">📺 유튜브 글 생성</button>
+        <span class="muted">대본 기반으로 제목 후보·설명·해시태그·태그를 만듭니다 (LLM)</span>
+      </div>
+      <textarea id="ytBox" readonly style="display:none;width:100%;min-height:240px;margin-top:10px"></textarea>
+      <div class="row" id="ytActions" style="display:none;margin-top:6px">
+        <button id="ytCopy">📋 전체 복사</button>
+        <span class="muted" id="ytSaved"></span>
+      </div>
+    </div>
+
+  </section>
+
+  <div class="card">
+    <div class="section-head">
+      <span class="ico ghost"><svg><use href="#i-layers"/></svg></span>
+      <div><div class="eyebrow" style="color:var(--mut)">Console</div><h3>진행 로그</h3></div>
+    </div>
+    <div class="log" id="log"></div>
+  </div>
+</main>
+
+<script>
+const api = (p, opt) => fetch(p, opt).then(async r => { const j = await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.detail||r.statusText); return j; });
+const $ = s => document.querySelector(s);
+let state = { bundle:null, status:null, poll:null };
+
+function toast(msg, bad){ const t=document.createElement('div'); t.className='toast'+(bad?' bad':''); t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(), 4200); }
+function copyPath(id){ const el=document.getElementById(id); if(!el) return;
+  navigator.clipboard.writeText(el.textContent).then(()=>toast('경로 복사됨: '+el.textContent)).catch(()=>toast('복사 실패',true)); }
+async function openFolder(kind){ if(!state.bundle){ toast('먼저 번들을 선택하세요',true); return; }
+  try{ await api(`/api/mf/bundles/${state.bundle}/open_folder`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind})});
+    toast('폴더를 열었습니다'); }catch(e){ toast(e.message,true); } }
+function setLog(lines){ const el=$('#log'); el.textContent=(lines||[]).join('\n'); el.scrollTop=el.scrollHeight; }
+function setBar(c,t){ const el=$('#barFill'); if(el) el.style.width = (t? Math.round(100*c/t):0)+'%'; }
+
+async function loadBundles(){
+  const {bundles} = await api('/api/mf/bundles');
+  const sel=$('#bundleSel'); sel.innerHTML='';
+  if(!bundles.length){ sel.innerHTML='<option value="">(번들 없음 — + 새 번들)</option>'; return; }
+  for(const b of bundles){ const o=document.createElement('option'); o.value=b; o.textContent=b; sel.appendChild(o); }
+  if(!state.bundle || !bundles.includes(state.bundle)) state.bundle=bundles[0];
+  sel.value=state.bundle;
+  await refresh();
+}
+
+async function refresh(){
+  if(!state.bundle){ return; }
+  const st = await api(`/api/mf/bundles/${state.bundle}/status`);
+  state.status = st;
+  $('#oneclickBtn').disabled = !st.has_script;
+  // steps
+  for(const s of document.querySelectorAll('.step')){ s.classList.toggle('done', !!(st.steps && st.steps[s.dataset.k])); }
+  renderHero(st); renderScript(st); renderImages(st); renderAudio(st); renderResult(st);
+}
+
+function renderScript(st){
+  const pb=$('#pathBox');
+  if(st.path){
+    pb.style.display='block';
+    pb.innerHTML=`<div class="ph">📁 이 번들 위치 — 여기에 파일을 넣으세요 (Flow 등에서 뽑은 이미지도 여기로)</div>
+      <div>대본 JSON → <code id="pScript">${st.script_dir}</code><button onclick="copyPath('pScript')">복사</button><button onclick="openFolder('script')">📂 열기</button></div>
+      <div style="margin-top:4px">이미지 → <code id="pImg">${st.images_dir}</code><button onclick="copyPath('pImg')">복사</button><button onclick="openFolder('images')">📂 열기</button></div>`;
+  } else { pb.style.display='none'; }
+  const info=$('#scriptInfo'), tbl=$('#sceneTable'), tb=tbl.querySelector('tbody');
+  if(!st.has_script){ info.textContent='대본 JSON이 없습니다. script/ 폴더에 chNN_script.json을 넣으세요.'; tbl.style.display='none'; return; }
+  info.innerHTML=`✅ <b>${st.title||'(제목 없음)'}</b> · 챕터 ${st.chapter} · 씬 ${st.scene_count}개`;
+  tb.innerHTML=''; tbl.style.display='table';
+  for(const s of st.scenes){
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${s.scene}</td><td>${s.title||''}</td><td>${s.narration_seconds??''}</td>
+      <td>${s.has_image?'<span class="pill ok">있음</span>':'<span class="pill bad">없음</span>'}</td>
+      <td>${s.has_audio?'<span class="pill ok">있음</span>':'<span class="pill bad">없음</span>'}</td>`;
+    tb.appendChild(tr);
+  }
+}
+
+function renderImages(st){
+  const el=$('#thumbs'); if(!st.scenes){ el.innerHTML=''; return; }
+  el.innerHTML='';
+  for(const s of st.scenes){
+    const d=document.createElement('div'); d.className='thumb';
+    if(s.has_image && s.image_file){
+      const url=`/api/mf/file/${state.bundle}/images/${encodeURIComponent(s.image_file)}`;
+      d.innerHTML=`<img src="${url}" alt="씬${s.scene}"><div class="cap"><span>씬${s.scene}</span><span class="pill ok">OK</span></div>`;
+    } else {
+      d.innerHTML=`<div class="miss">씬${s.scene} 없음</div>`;
+    }
+    el.appendChild(d);
+  }
+}
+
+// ----- 자막 큐(cue) 헬퍼 -----
+function fmt(t){ t=Math.max(0,t); const m=Math.floor(t/60), s=(t-m*60); return (m? m+':' : '')+s.toFixed(1); }
+function parseTime(v){ v=String(v).trim(); if(v.includes(':')){ const [m,s]=v.split(':'); return parseFloat(m)*60+parseFloat(s||'0'); } return parseFloat(v)||0; }
+function parseSrt(text){ // SRT → [{start,end,text}]
+  const cues=[]; const blocks=(text||'').trim().split(/\n\s*\n/);
+  for(const b of blocks){ const lines=b.split('\n'); let tm=null,body=[];
+    for(const ln of lines){ const m=ln.match(/(\d{1,2}:\d{2}:\d{2})[,.](\d{1,3})\s*-->\s*(\d{1,2}:\d{2}:\d{2})[,.](\d{1,3})/);
+      if(m&&!tm){ const to=s=>{const[h,mi,se]=s.split(':').map(Number);return h*3600+mi*60+se;}; tm=[to(m[1])+(+m[2])/1000, to(m[3])+(+m[4])/1000]; }
+      else if(tm){ body.push(ln); } }
+    if(tm){ const t=body.join('\n').trim(); if(t) cues.push({start:tm[0],end:tm[1],text:t}); } }
+  return cues;
+}
+function autofillCues(cues, total){ // 글자수 비례 분배 (backend auto_time_cues 규칙)
+  const texts=cues.map(c=>c.text.trim()).filter(Boolean); if(!texts.length) return cues;
+  const w=texts.map(t=>Math.max(t.length,1)); const sum=w.reduce((a,b)=>a+b,0); let cur=0; const out=[];
+  texts.forEach((t,i)=>{ const end=(i===texts.length-1)?total:cur+total*(w[i]/sum); out.push({text:t,start:+cur.toFixed(3),end:+end.toFixed(3)}); cur=end; });
+  return out;
+}
+
+let VOICES=null;
+async function loadVoices(){ if(VOICES) return VOICES; try{ VOICES=(await api('/api/voices')).voices.map(v=>v.code); }catch(e){ VOICES=[]; } return VOICES; }
+
+// 재생 중 현재 자막을 검은 박스에 표시 + 해당 줄 하이라이트 (현재 cue 행의 시간 기준)
+function syncPreview(card){
+  const a=card.querySelector('.aud'), pv=card.querySelector('.cuepv-text'), rowsEl=card.querySelector('.cuerows');
+  if(!a || !pv || !rowsEl) return;
+  const upd=()=>{ const t=a.currentTime; let found='';
+    rowsEl.querySelectorAll('.cuerow').forEach(r=>{
+      const s=parseTime(r.querySelector('.cstart').value), e=parseTime(r.querySelector('.cend').value);
+      const on=(t>=s && t<e); r.classList.toggle('active', on); if(on) found=r.querySelector('.ctext').value; });
+    pv.textContent=found; };
+  a.ontimeupdate=upd; a.onseeked=upd; a.onplay=upd;
+  a.onpause=()=>{}; a.onended=()=>{ rowsEl.querySelectorAll('.cuerow.active').forEach(r=>r.classList.remove('active')); pv.textContent=''; };
+}
+
+function cueRowHtml(c){ return `<div class="cuerow">
+  <input class="cstart" value="${fmt(c.start)}"><input class="cend" value="${fmt(c.end)}">
+  <input class="ctext" value="${(c.text||'').replace(/"/g,'&quot;')}">
+  <button class="del" title="삭제">✕</button></div>`; }
+
+async function renderAudio(st){
+  const host=$('#sceneCards'); if(!st.scenes){ host.innerHTML=''; return; }
+  await loadVoices();
+  const vopts='<option value="">(기본)</option>'+VOICES.map(v=>`<option>${v}</option>`).join('');
+  host.innerHTML = st.scenes.map(s=>{
+    const dur = s.audio_duration!=null ? `· 음성 ${s.audio_duration.toFixed(1)}s` : '· 음성 없음';
+    const audio = (s.has_audio && s.audio_file)
+      ? `<audio class="aud" src="/api/mf/file/${state.bundle}/audio/${encodeURIComponent(s.audio_file)}?t=${Date.now()}" controls></audio>` : '';
+    return `<div class="scard" data-scene="${s.scene}" data-dur="${s.audio_duration||0}">
+      <div class="scard-head">씬 ${s.scene} · ${s.title||''} <span class="dur">${dur}</span></div>
+      <div class="twocol">
+        <div><label>발음 (TTS 입력 · 실제로 읽는 텍스트)</label><textarea class="narr">${(s.narration_text||'').replace(/</g,'&lt;')}</textarea></div>
+        <div><label>자막 (화면에 보이는 원문)</label><textarea class="srt">${((s.srt_text||s.narration_text)||'').replace(/</g,'&lt;')}</textarea></div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="pronai">🔤 AI 발음</button>
+        <button class="pron">한국어 발음 전환</button>
+        <span class="muted">보이스</span><select class="voice">${vopts}</select>
+        <button class="regen primary" title="음성만 다시 만들고, 편집한 자막 줄은 유지한 채 시간만 새 음성 길이에 맞춰 보정">🔁 음성 재생성</button>
+      </div>
+      ${audio}
+      <div class="cuepv"><span class="cuepv-text"></span></div>
+      <div class="cuehead"><b>자막 타이밍</b> <small>(들으면서 조정)</small><span class="grow"></span>
+        <button class="autofill">시간 자동 채우기</button><button class="addrow">+ 행</button>
+        <button class="savesrt primary">자막 저장</button></div>
+      <div class="cuerows muted">자막 불러오는 중…</div>
+    </div>`;
+  }).join('');
+
+  // 카드별 동작 연결 + 자막 로드
+  for(const card of host.querySelectorAll('.scard')){
+    const scene=+card.dataset.scene;
+    const rowsEl=card.querySelector('.cuerows');
+    const s=st.scenes.find(x=>x.scene===scene);
+    // 자막 로드 → cue rows
+    if(s.has_subtitle && s.subtitle_file){
+      fetch(`/api/mf/file/${state.bundle}/subtitles/${encodeURIComponent(s.subtitle_file)}`).then(r=>r.text())
+        .then(t=>{ const cues=parseSrt(t); rowsEl.classList.remove('muted'); rowsEl.innerHTML=cues.map(cueRowHtml).join('')||'<span class="muted">자막 없음</span>'; });
+    } else { rowsEl.classList.remove('muted'); rowsEl.innerHTML='<span class="muted">아직 자막 없음 — 재생성하면 만들어집니다</span>'; }
+
+    syncPreview(card);
+
+    card.querySelector('.pron').onclick=async()=>{
+      const narr=card.querySelector('.narr');
+      try{ const r=await api(`/api/mf/bundles/${state.bundle}/to_pronunciation`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:narr.value})});
+        narr.value=r.text; toast('발음 전환 적용 (TTS 입력)'); }catch(e){ toast(e.message,true); }
+    };
+    card.querySelector('.pronai').onclick=async(e)=>{
+      const narr=card.querySelector('.narr'); const btn=e.target; btn.disabled=true; const old=btn.textContent; btn.textContent='변환 중…';
+      try{ const r=await api('/api/mf/pronounce_ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:narr.value})});
+        narr.value=r.text; toast('AI 발음 변환 (TTS 입력)'); }catch(err){ toast(err.message,true); } finally{ btn.disabled=false; btn.textContent=old; }
+    };
+    const currentCues=()=>[...rowsEl.querySelectorAll('.cuerow')].map(r=>({
+        start:parseTime(r.querySelector('.cstart').value), end:parseTime(r.querySelector('.cend').value),
+        text:r.querySelector('.ctext').value}));
+    async function doSynth(resetSubtitle){
+      // 편집한 자막 줄을 잃지 않도록, 재생성 전에 현재 화면의 자막을 먼저 저장한다.
+      if(!resetSubtitle){ const cues=currentCues().filter(c=>c.text.trim());
+        if(cues.length){ try{ await api(`/api/mf/bundles/${state.bundle}/scene_srt`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scene,cues})}); }catch(_){}} }
+      const r=await api(`/api/mf/bundles/${state.bundle}/scene_synth`,{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({scene, text:card.querySelector('.narr').value, srt_text:card.querySelector('.srt').value,
+          voice:card.querySelector('.voice').value||null, reset_subtitle:!!resetSubtitle})});
+      card.dataset.dur=r.duration; rowsEl.classList.remove('muted'); rowsEl.innerHTML=r.cues.map(cueRowHtml).join('');
+      let a=card.querySelector('.aud'); const src=`/api/mf/file/${state.bundle}/audio/${encodeURIComponent(r.audio_file)}?t=${Date.now()}`;
+      if(a) a.src=src; else { a=document.createElement('audio'); a.className='aud'; a.controls=true; a.src=src; card.querySelector('.cuehead').before(a); }
+      card.querySelector('.dur').textContent='· 음성 '+r.duration.toFixed(1)+'s';
+      syncPreview(card);
+    }
+    card.querySelector('.regen').onclick=async(e)=>{
+      const btn=e.target; btn.disabled=true; const old=btn.textContent; btn.textContent='생성 중…';
+      try{ await doSynth(false); toast(`씬 ${scene} 음성 재생성 (자막 유지)`); }
+      catch(err){ toast(err.message,true); } finally{ btn.disabled=false; btn.textContent=old; }
+    };
+    card.querySelector('.autofill').onclick=()=>{
+      const total=parseFloat(card.dataset.dur)||0;
+      if(!total){ toast('먼저 음성을 생성하세요 (길이 필요)',true); return; }
+      const cues=[...rowsEl.querySelectorAll('.cuerow')].map(r=>({text:r.querySelector('.ctext').value, start:0, end:0}));
+      rowsEl.innerHTML=autofillCues(cues,total).map(cueRowHtml).join('');
+      toast('시간 자동 채움 (음성 길이 기준)');
+    };
+    card.querySelector('.addrow').onclick=()=>{ rowsEl.insertAdjacentHTML('beforeend', cueRowHtml({start:0,end:0,text:''})); };
+    rowsEl.onclick=(e)=>{ if(e.target.classList.contains('del')) e.target.closest('.cuerow').remove(); };
+    card.querySelector('.savesrt').onclick=async()=>{
+      const cues=[...rowsEl.querySelectorAll('.cuerow')].map(r=>({start:parseTime(r.querySelector('.cstart').value),
+        end:parseTime(r.querySelector('.cend').value), text:r.querySelector('.ctext').value}));
+      try{ const r=await api(`/api/mf/bundles/${state.bundle}/scene_srt`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scene,cues})});
+        toast(`씬 ${scene} 자막 저장 (${r.cue_count}줄)`); }catch(e){ toast(e.message,true); }
+    };
+  }
+}
+
+function renderResult(st){
+  const el=$('#resultBox');
+  if(st.final_mp4){
+    const name = st.final_mp4.split(/[\\/]/).pop();
+    const url=`/api/mf/file/${state.bundle}/draft/${encodeURIComponent(name)}?t=${Date.now()}`;
+    const stale = st.render_stale
+      ? `<div style="background:rgba(245,185,66,.15);border:1px solid var(--warn);color:var(--warn);border-radius:8px;padding:8px 10px;margin-bottom:8px">⚠ 음성·자막·이미지가 바뀌었습니다. 아래 영상은 <b>옛 버전</b>입니다 — [🎬 풀 렌더]로 다시 만드세요 (또는 [🗑 기존 결과 삭제]).</div>` : '';
+    el.innerHTML=`${stale}<video src="${url}" controls></video>
+      <div class="row" style="margin-top:8px">
+        <a href="${url}" download><button class="primary">⬇ 다운로드 (${name})</button></a>
+        <button id="openDraftBtn">📂 결과 폴더 열기</button>
+      </div>`;
+    const ob=$('#openDraftBtn');
+    if(ob) ob.onclick=async()=>{ try{ await api(`/api/mf/bundles/${state.bundle}/open_draft`,{method:'POST'}); toast('결과 폴더를 열었습니다'); }catch(e){ toast(e.message,true); } };
+  } else { el.innerHTML='<span class="muted">아직 합성된 영상이 없습니다. [🎬 풀 렌더] 또는 [⚡ 한 번에 만들기].</span>'; }
+}
+
+function topBtns(){ return ['#synthBtn','#renderBtn','#dryBtn','#oneclickBtn','#clearBtn'].map(s=>$(s)).filter(Boolean); }
+function setBusy(on, activeBtn){
+  topBtns().forEach(b=>{ b.disabled=on; });
+  if(activeBtn){
+    if(on){ activeBtn._old=activeBtn.textContent; activeBtn.textContent='⏳ 진행 중…'; }
+    else if(activeBtn._old!=null){ activeBtn.textContent=activeBtn._old; }
+  }
+}
+async function pollJob(id, activeBtn, done){
+  setBusy(true, activeBtn);
+  clearInterval(state.poll);
+  const t0=Date.now(), hs=$('#hdrStage');
+  hs.classList.add('on'); hs.innerHTML='<span class="spin"></span>시작 중…';
+  state.poll=setInterval(async()=>{
+    let j; try{ j=await api(`/api/mf/jobs/${id}`); }catch(e){ return; }
+    const el=Math.round((Date.now()-t0)/1000);
+    const stg=$('#stageText'); if(stg) stg.textContent = (j.status==='running'?'⏳ ':'') + (j.stage||'');
+    if(j.status==='running'){ hs.innerHTML=`<span class="spin"></span>${(j.stage||'진행 중')} · ${el}s`; }
+    setBar(j.completed, j.total); setLog(j.log);
+    if(j.status==='done' || j.status==='error'){
+      clearInterval(state.poll); setBusy(false, activeBtn);
+      hs.classList.remove('on'); hs.innerHTML='';
+      if(j.status==='error'){ toast('실패: '+(j.error||''), true); }
+      else { toast(`완료 (${el}s)`); }
+      await refresh(); if(done) done(j);
+    }
+  }, 800);
+}
+
+// ----- 랜딩 프리뷰 + 인라인 SVG 차트 (의존성 0) -----
+function statTile(k, v, sub){
+  return `<div class="stat"><div class="k">${k}</div><div class="v">${v}${sub?` <small>${sub}</small>`:''}</div></div>`;
+}
+// 씬별 길이 = 크기(magnitude) → 단일 파란 계열, 범례 없음(제목이 명명). 막대별 네이티브 <title> 호버.
+function barChartSVG(vals, unit){
+  const n=vals.length; if(!n) return '<div class="muted" style="font-size:12px">데이터 없음</div>';
+  const W=300, H=96, padB=14, padT=6, max=Math.max(...vals,1), bw=W/n, bar=Math.max(3,Math.min(22,bw*0.62));
+  let bars='';
+  vals.forEach((v,i)=>{
+    const h=Math.max(2,(H-padB-padT)*(v/max)), x=i*bw+(bw-bar)/2, y=H-padB-h;
+    bars+=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bar.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="var(--acc)"><title>씬 ${i+1}: ${v}${unit||''}</title></rect>`;
+  });
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="씬별 길이 막대차트" style="height:96px">
+    <line x1="0" y1="${H-padB}" x2="${W}" y2="${H-padB}" stroke="var(--line)"/>${bars}</svg>`;
+}
+function renderHero(st){
+  const el=$('#heroPreview'); if(!el) return;
+  if(!st || !st.has_script){
+    el.innerHTML = `<div class="eyebrow" style="color:var(--mut)">Preview</div>
+      <div class="muted" style="margin-top:8px">${st&&st.bundle
+        ? `번들 <b>${st.bundle}</b> — 대본이 아직 없습니다. 아래 [Step 1]에서 생성하거나 붙여넣으세요.`
+        : '번들을 선택하거나 [새 번들]을 만드세요.'}</div>`;
+    return;
+  }
+  const sc=st.scenes||[], n=sc.length;
+  const imgN=sc.filter(s=>s.has_image).length, audN=sc.filter(s=>s.has_audio).length;
+  const secs=sc.reduce((a,s)=>a+(+s.narration_seconds||s.audio_duration||0),0);
+  const durs=sc.map(s=>Math.round(+s.narration_seconds||s.audio_duration||0));
+  el.innerHTML = `
+    <div class="section-head" style="margin-bottom:14px">
+      <span class="ico ghost sm"><svg><use href="#i-film"/></svg></span>
+      <div><div class="eyebrow" style="color:var(--mut)">${st.bundle}</div>
+        <div style="font-weight:700;font-size:16px;letter-spacing:-.3px">${st.title||'(제목 없음)'}</div></div>
+    </div>
+    <div class="stats">
+      ${statTile('씬', n)}
+      ${statTile('예상 길이', (secs/60).toFixed(1), '분')}
+      ${statTile('이미지', imgN, '/ '+n)}
+      ${statTile('음성', audN, '/ '+n)}
+    </div>
+    <div class="chart-title">씬별 길이 (초)</div>
+    ${barChartSVG(durs,'초')}
+  `;
+}
+
+// --- 버튼 핸들러 ---
+$('#bundleSel').onchange = e => { state.bundle=e.target.value; refresh(); };
+$('#refreshBtn').onclick = refresh;
+$('#newBtn').onclick = async()=>{ const n=prompt('새 번들 이름 (예: ch90)'); if(!n) return;
+  const r=await api('/api/mf/bundles',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})});
+  state.bundle=r.bundle; toast('생성: '+r.bundle+' (script/ 에 대본 JSON을 넣으세요)'); await loadBundles(); };
+$('#importBtn').onclick = async()=>{ try{
+  const r=await api(`/api/mf/bundles/${state.bundle}/import_images`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prefer:$('#preferSel').value})});
+  toast(`이미지 ${r.imported.length}개 씬 가져옴`); state.status=r.status; await refresh();
+}catch(e){ toast(e.message,true); } };
+
+async function refreshLLM(){
+  const el = $('#llmBadge'); if(!el) return;
+  el.textContent = 'LLM 상태 확인 중…';
+  try{
+    const s = await api('/api/mf/llm/status');
+    $('#llmProvider').value = s.provider;
+    const a = s.active || {};
+    el.className='statusline';
+    if(!a.installed){ el.innerHTML = `<span class="sdot bad"></span>${s.label} 미설치`; }
+    else if(!a.authenticated){ el.innerHTML = `<span class="sdot warn"></span>${s.label} 미로그인 — [로그인]`; }
+    else { el.innerHTML = `<span class="sdot ok"></span>${s.label}${a.email?' · '+a.email:''}`; }
+  }catch(e){ el.className='statusline'; el.innerHTML = '<span class="sdot bad"></span>상태 확인 실패: '+e.message; }
+}
+$('#llmRefreshBtn').onclick = refreshLLM;
+$('#llmProvider').onchange = async e=>{
+  try{ await api('/api/mf/llm/provider',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:e.target.value})}); await refreshLLM(); }
+  catch(err){ toast(err.message,true); }
+};
+$('#llmLoginBtn').onclick = async()=>{
+  try{ await api('/api/mf/llm/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:$('#llmProvider').value})});
+    toast('새 콘솔에서 로그인을 진행하세요. 완료 후 🔄'); }
+  catch(e){ toast(e.message,true); }
+};
+$('#genScriptBtn').onclick = async(e)=>{
+  if(!state.bundle){ toast('먼저 번들을 선택/생성하세요',true); return; }
+  const body = JSON.stringify({
+    topic: $('#genTopic').value, minutes: +$('#genMinutes').value||15,
+    images: +$('#genImages').value||0, target_chars: +$('#genChars').value||0,
+    title: $('#genTitle').value });
+  const r = await api(`/api/mf/bundles/${state.bundle}/generate_script`,{method:'POST',headers:{'Content-Type':'application/json'},body});
+  pollJob(r.job_id, e.currentTarget);
+};
+$('#saveScriptBtn').onclick = async()=>{
+  try{ const r=await api(`/api/mf/bundles/${state.bundle}/save_script`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({script_json:$('#scriptJson').value})});
+    toast(`대본 저장 (${r.scene_count}씬)`); state.status=r.status; await refresh(); }
+  catch(e){ toast(e.message,true); }
+};
+
+// ----- 레슨(문제집/강의) JSON -----
+$('#lessonLoadBtn').onclick = ()=>$('#lessonFile').click();
+$('#lessonFile').onchange = e=>{ const f=e.target.files&&e.target.files[0]; if(!f) return;
+  const rd=new FileReader(); rd.onload=()=>{ $('#lessonJson').value=rd.result; toast('불러옴: '+f.name+' — [레슨 저장]을 누르세요'); }; rd.readAsText(f,'utf-8'); e.target.value=''; };
+$('#saveLessonBtn').onclick = async()=>{
+  if(!state.bundle){ toast('먼저 번들을 선택/생성하세요',true); return; }
+  try{ const r=await api(`/api/mf/bundles/${state.bundle}/save_lesson`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lesson_json:$('#lessonJson').value})});
+    const info=$('#lessonInfo'); info.innerHTML=`✅ 블록 ${r.block_count}개(문제 ${r.problem_count}) → 씬 ${r.scene_count}개`;
+    if(r.warnings&&r.warnings.length) toast('저장됨 · 경고 '+r.warnings.length+'건 (로그 확인)');
+    else toast(`레슨 저장 (문제 ${r.problem_count} → 씬 ${r.scene_count})`);
+    if(r.warnings) setLog(r.warnings);
+    state.status=r.status; await refresh(); }
+  catch(e){ toast(e.message,true); }
+};
+
+// 근거자료 첨부/드래그드랍 (PDF·txt) → 본문 추출해 주제창에 채움
+async function uploadContext(fileList){
+  const files=[...(fileList||[])].filter(Boolean); if(!files.length) return;
+  const fd=new FormData(); files.forEach(f=>fd.append('files', f));
+  const info=$('#genAttachInfo'), old=info.textContent;
+  info.textContent='본문 추출 중… ('+files.map(f=>f.name).join(', ')+')';
+  try{
+    const r=await api('/api/mf/extract_text',{method:'POST',body:fd});
+    const ta=$('#genTopic'); ta.value=(ta.value.trim()? ta.value.trim()+'\n\n':'')+r.text;
+    info.textContent=`첨부 완료: ${r.files}개 · ${r.chars.toLocaleString()}자`;
+    toast(`본문 추출 완료 (${r.chars.toLocaleString()}자)`);
+  }catch(e){ info.textContent=old; toast('추출 실패: '+e.message, true); }
+}
+$('#genAttachBtn').onclick=()=>$('#genFile').click();
+$('#genFile').onchange=e=>{ uploadContext(e.target.files); e.target.value=''; };
+(function(){ const ta=$('#genTopic'); if(!ta) return;
+  ['dragenter','dragover'].forEach(ev=>ta.addEventListener(ev,e=>{e.preventDefault(); ta.style.borderColor='var(--acc)'; ta.style.boxShadow='0 0 0 3px rgba(0,117,222,.15)';}));
+  ['dragleave','drop'].forEach(ev=>ta.addEventListener(ev,e=>{e.preventDefault(); ta.style.borderColor=''; ta.style.boxShadow='';}));
+  ta.addEventListener('drop',e=>{ const f=e.dataTransfer&&e.dataTransfer.files; if(f&&f.length) uploadContext(f); });
+})();
+
+$('#slideBtn').onclick = async(e)=>{
+  if(!state.bundle){ toast('먼저 번들을 선택하세요',true); return; }
+  const body = JSON.stringify({ motion: $('#motionChk').checked });
+  const r=await api(`/api/mf/bundles/${state.bundle}/generate_slides`,{method:'POST',headers:{'Content-Type':'application/json'},body});
+  pollJob(r.job_id, e.currentTarget);
+};
+$('#synthBtn').onclick = async(e)=>{ const r=await api(`/api/mf/bundles/${state.bundle}/synth`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}); pollJob(r.job_id, e.currentTarget); };
+$('#synthAiBtn') && ($('#synthAiBtn').onclick = async(e)=>{
+  if(!state.bundle){ toast('먼저 번들을 선택하세요',true); return; }
+  if(!confirm('모든 씬의 발음을 AI로 소리나는 대로 한글 변환한 뒤 음성을 생성합니다. 진행할까요?')) return;
+  const r=await api(`/api/mf/bundles/${state.bundle}/synth_ai`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}); pollJob(r.job_id, e.currentTarget); });
+$('#renderBtn').onclick = async(e)=>{ const r=await api(`/api/mf/bundles/${state.bundle}/render`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}); pollJob(r.job_id, e.currentTarget); };
+$('#dryBtn').onclick = async(e)=>{ const r=await api(`/api/mf/bundles/${state.bundle}/render`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dry_run:true})}); pollJob(r.job_id, e.currentTarget); };
+$('#clearBtn').onclick = async()=>{ if(!confirm('기존 풀렌더 결과(영상·자막·프로젝트)를 삭제할까요?')) return;
+  try{ const r=await api(`/api/mf/bundles/${state.bundle}/clear_draft`,{method:'POST'}); toast(`삭제됨 (${r.removed.length}개)`); state.status=r.status; await refresh(); }catch(e){ toast(e.message,true); } };
+$('#oneclickBtn').onclick = async(e)=>{ const r=await api(`/api/mf/bundles/${state.bundle}/oneclick`,{method:'POST'}); pollJob(r.job_id, e.currentTarget); };
+$('#ytBtn').onclick = async(e)=>{
+  if(!state.bundle){ toast('먼저 번들을 선택하세요',true); return; }
+  const r=await api(`/api/mf/bundles/${state.bundle}/youtube_meta`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+  pollJob(r.job_id, e.currentTarget, (j)=>{
+    if(j.status==='done' && j.result && j.result.text){
+      const ta=$('#ytBox'); ta.style.display='block'; ta.value=j.result.text;
+      $('#ytActions').style.display='flex';
+      $('#ytSaved').textContent = j.result.saved ? ('저장됨: draft/'+j.result.saved) : '';
+    }
+  });
+};
+$('#ytCopy').onclick = ()=>{ const ta=$('#ytBox'); ta.select();
+  navigator.clipboard.writeText(ta.value).then(()=>toast('유튜브 글 복사됨')).catch(()=>toast('복사 실패',true)); };
+
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active'); $('#p-'+t.dataset.tab).classList.add('active');
+});
+
+loadBundles().catch(e=>toast(e.message,true));
+refreshLLM().catch(()=>{});
+</script>
+</body>
+</html>

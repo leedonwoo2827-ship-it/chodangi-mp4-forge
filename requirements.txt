@@ -1,0 +1,33 @@
+# mediaforge = voicewright(로컬 CPU TTS) + mp4maker(ffmpeg 합성) 통합
+# Python 3.11–3.13. ffmpeg/ffprobe 는 별도 설치 (winget install Gyan.FFmpeg)
+
+# --- voicewright (TTS) ---
+numpy>=1.26
+soundfile>=0.12.1
+onnxruntime>=1.17           # GPU 사용 시: onnxruntime-gpu 로 교체
+pyyaml>=6.0
+
+# --- mp4maker (합성) ---
+pysrt>=1.1.2
+lxml>=5.2.0
+
+# --- slides (문제집/강의 슬라이드 렌더) ---
+Pillow>=10.0        # 텍스트 슬라이드 프레임 렌더. 모션 클립은 ffmpeg 로 합성.
+
+# --- 통합 웹앱 (FastAPI) ---
+fastapi>=0.110
+uvicorn[standard]>=0.29
+jinja2>=3.1
+python-multipart>=0.0.9
+pydantic>=2.6
+
+# (ComfyUI 연동은 이 빌드에서 제거됨 — 슬라이드는 로컬 Pillow 렌더)
+
+# --- 대본 근거자료 PDF 텍스트 추출 (장별 PDF 드래그드랍) ---
+pypdf>=4.0
+
+# --- 대본 자동 생성 LLM 위임 (codex/agy CLI, OAuth·API키 없음) ---
+# codex(OpenAI): 추가 패키지 없음(subprocess). agy(Gemini): 아래 Windows 전용 패키지 필요.
+# agy 는 콘솔에 직접 출력 → PTY 캡처(pywinpty), Windows 자격증명 읽기(pywin32).
+pywin32; sys_platform == "win32"
+pywinpty; sys_platform == "win32"

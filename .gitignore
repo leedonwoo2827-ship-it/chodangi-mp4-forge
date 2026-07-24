@@ -1,0 +1,37 @@
+# 로컬 전용 요청/설계 메모 (GitHub에 안 올림)
+_context/
+
+# 작업 산출물 (번들: 대본/이미지/음성/영상)
+_assets/
+munje/
+
+# 생성 결과물은 GitHub에 올리지 않음 — 입력(script/images)만 추적.
+# (어느 위치의 번들이든 audio/subtitles/draft/clips 폴더는 제외)
+**/audio/
+**/subtitles/
+**/draft/
+**/clips/
+
+# 로컬 설정 + 개인 ComfyUI 워크플로우 매핑 (템플릿/README 는 추적)
+.env
+workflows/*.map.json
+
+# TTS 모델 (HuggingFace에서 setup으로 다운로드, ~380MB, 자체 .git 포함) — 전체 제외
+# 단, assets/fonts/README.md(폰트 넣는 법 안내)는 추적
+assets/*
+!assets/fonts/
+assets/fonts/*
+!assets/fonts/README.md
+
+# 통합 요약노트 산출물
+_book/
+
+# 파이썬
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db

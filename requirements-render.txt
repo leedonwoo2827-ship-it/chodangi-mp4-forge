@@ -1,0 +1,26 @@
+# 헤드리스 렌더 경로(문제집 → 슬라이드 → Supertonic3 음성 → MP4) 최소 의존성.
+# render.bat / make_video.py 는 ComfyUI·LLM·PDF·pywin32 계열을 전혀 쓰지 않는다.
+# Supertonic3 는 onnxruntime + 번들 helper + HF 모델(assets/)만으로 동작 (PyTorch/클라우드/API키 없음).
+
+# --- Supertonic3 TTS (voicewright) ---
+numpy>=1.26
+soundfile>=0.12.1
+onnxruntime>=1.17          # GPU 사용 시 onnxruntime-gpu 로 교체 가능
+pyyaml>=6.0
+pydantic>=2.6             # voicewright.schemas(대본 스키마) 필수
+
+# --- mp4maker (ffmpeg 합성) ---
+pysrt>=1.1.2
+lxml>=5.2.0
+
+# --- slides (문제집 슬라이드 렌더) ---
+Pillow>=10.0
+
+# --- (선택) 웹 UI(run.bat)도 쓰려면 주석 해제 ---
+# fastapi>=0.110
+# uvicorn[standard]>=0.29
+# jinja2>=3.1
+# python-multipart>=0.0.9
+
+# --- (선택) explanation SVG 도식을 슬라이드에 자동 렌더하려면 설치 (없어도 텍스트로 정상 동작) ---
+# cairosvg>=2.7
