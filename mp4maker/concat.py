@@ -73,10 +73,16 @@ def concat_with_crossfade(
 
     filter_complex = ";".join(parts)
 
+    # 씬이 많으면(예: 50문항≈200씬) filter_complex 를 명령줄에 직접 넣을 때 Windows 명령줄
+    # 길이 한계(~32KB)를 넘어 [WinError 206] 이 난다. 필터 그래프를 파일로 넘겨 길이를 줄인다.
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fc_script = out_path.parent / f".xfade_{out_path.stem}.txt"
+    fc_script.write_text(filter_complex, encoding="utf-8")
+
     cmd = [
         "ffmpeg", "-y",
         *inputs,
-        "-filter_complex", filter_complex,
+        "-filter_complex_script", str(fc_script),
         "-map", prev_v,
         "-map", prev_a,
         "-c:v", "libx264",
@@ -94,8 +100,13 @@ def concat_with_crossfade(
 
     if cmd_dump_path is not None:
         dump_cmd_script(cmd, cmd_dump_path)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    run_ffmpeg(cmd, log_path=log_path)
+    try:
+        run_ffmpeg(cmd, log_path=log_path)
+    finally:
+        try:
+            fc_script.unlink()
+        except OSError:
+            pass
 
 
 def mux_softsub(video_in: Path, srt_in: Path, out_path: Path, log_path: Path | None = None) -> None:
