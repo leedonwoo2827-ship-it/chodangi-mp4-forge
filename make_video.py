@@ -20,6 +20,7 @@ import argparse
 import asyncio
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -76,8 +77,20 @@ def _truncate_problems(doc: dict, max_problems: int) -> None:
     doc["blocks"] = kept
 
 
+def _out5_dir(lesson_path: Path) -> Path:
+    """04\\lesson_mXX.json → 형제 05 폴더(완성 영상 스테이지)."""
+    return lesson_path.parent.parent / "05"
+
+
+def _out_name(lesson_path: Path) -> str:
+    """lesson_m01.json → 'm01' (05\\m01.mp4)."""
+    stem = lesson_path.stem
+    return stem[len("lesson_"):] if stem.startswith("lesson_") else stem
+
+
 def build(lesson_path: Path, chapter: int, only: list[int] | None,
-          assets_srcs: list[Path], do_audio: bool, max_problems: int = 0) -> Path:
+          assets_srcs: list[Path], do_audio: bool, max_problems: int = 0,
+          out_dir: Path | None = None) -> Path:
     print(f"[make] lesson = {lesson_path}")
     text = lesson_path.read_text(encoding="utf-8")
     doc = workbook.parse_lesson_doc(text)
@@ -146,6 +159,18 @@ def build(lesson_path: Path, chapter: int, only: list[int] | None,
 
     final_mp4 = root / "draft" / f"ch{chapter:02d}_final.mp4"
     print(f"[done] {final_mp4}")
+
+    # 완성 영상(+자막)을 파이프라인 05 스테이지 폴더로 복사(깔끔한 이름). 중간파일은 munje 에 유지.
+    if out_dir is not None:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        name = _out_name(lesson_path)
+        dest = out_dir / f"{name}.mp4"
+        shutil.copy2(final_mp4, dest)
+        srt = root / "draft" / f"ch{chapter:02d}.srt"
+        if srt.exists():
+            shutil.copy2(srt, out_dir / f"{name}.srt")
+        print(f"[out] {dest}")
+        return dest
     return final_mp4
 
 
@@ -174,6 +199,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--max-problems", type=int, default=0,
                    help="앞 N문제까지만 완전 렌더(빠른 테스트용, mp4 생성). 0=전체")
     p.add_argument("--assets-src", default="", help="도식 SVG 소스 폴더(기본: 형제 02/assets 자동 탐색)")
+    p.add_argument("--out-dir", default="", help="완성 영상 복사 위치(기본: 형제 05 폴더). 'none'=복사 안 함")
     p.add_argument("--no-audio", action="store_true", help="음성 생략(슬라이드/합성만)")
     args = p.parse_args(argv)
 
@@ -186,8 +212,16 @@ def main(argv: list[str] | None = None) -> int:
     else:
         assets_srcs = _default_assets_srcs(lesson_path)
 
+    od = args.out_dir.strip()
+    if od.lower() == "none":
+        out_dir = None
+    elif od:
+        out_dir = Path(od)
+    else:
+        out_dir = _out5_dir(lesson_path)   # 기본: 04 의 형제 05 폴더
+
     build(lesson_path, args.chapter, _parse_only(args.only), assets_srcs,
-          not args.no_audio, max_problems=args.max_problems)
+          not args.no_audio, max_problems=args.max_problems, out_dir=out_dir)
     return 0
 
 
