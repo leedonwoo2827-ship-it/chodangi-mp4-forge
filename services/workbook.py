@@ -322,7 +322,8 @@ def lesson_to_script(doc: dict, chapter: Optional[int] = None) -> dict:
                      "answer_index": b.get("answer_index"),
                      "explanation": page, "meta": meta, "source": src,
                      "page": pi + 1, "total_pages": n_pages,
-                     "show_choices": pi == 0},
+                     # 정답 선지는 해설이 여러 페이지여도 매 페이지 상단에 유지한다.
+                     "show_choices": True},
                 )
             # 씬 B2 — 다음 문제로 넘어가기 전 간격(무음)
             if gap > 0:

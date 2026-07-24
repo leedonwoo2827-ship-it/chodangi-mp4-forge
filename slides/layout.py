@@ -297,8 +297,14 @@ def build_problem(slide: dict, pal: dict):
     y = draw_lines(d, qlines, PAD_X, y, qfont, pal["text"] + (255,), qlh)
     y += 34
     choices = [_strip_lead_circle(str(c)) for c in (slide.get("choices") or [])]
+    # 보기가 너무 길면 문제 화면에선 생략(교재 참고) — TTS는 보기를 그대로 낭독한다.
+    # slide["hide_choices"] 로 명시 가능, 없으면 길이로 자동 판단.
+    hide = slide.get("hide_choices")
+    if hide is None and choices:
+        total = sum(len(c) for c in choices)
+        hide = total > 220 or any(len(c) > 90 for c in choices)
     elements = []
-    if choices:
+    if choices and not hide:
         avail = SAFE_BOTTOM - y
         joined = "\n".join(choices)
         cfont, _, _ = fit_text(joined, 44, 28, CONTENT_W - 70, avail)
@@ -313,6 +319,9 @@ def build_problem(slide: dict, pal: dict):
             draw_lines(ld, lines, PAD_X + 56, cy, cfont, pal["text"] + (255,), clh)
             elements.append((layer, _appear(i)))
             cy += clh * len(lines) + 16
+    elif choices and hide:
+        hint = "① ~ " + _circled(len(choices) - 1) + " 보기는 교재를 참고하세요"
+        d.text((PAD_X, y + 8), hint, font=load_font(38, bold=False), fill=pal["sub"] + (255,))
     return base, elements
 
 
