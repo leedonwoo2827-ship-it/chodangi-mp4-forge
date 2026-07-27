@@ -302,6 +302,23 @@ def _finalize_bundle(scratch: Path, b05: Path, recs: list[dict], cid: str,
     return dest
 
 
+def _resolve_book_round(path: Path) -> tuple[Path, str]:
+    """드래그드롭된 경로 → (book, round_code).
+
+    허용: 번들 폴더 `<book>/05/<round>` 또는 그 안의 `script/<round>_script.json` / 아무 파일.
+    """
+    p = path.resolve()
+    # 파일이면 번들 폴더까지 거슬러 올라간다(…/05/<round>/script/x.json → …/05/<round>).
+    if p.is_file():
+        p = p.parent
+        if p.name.lower() == "script":
+            p = p.parent
+    bundle = p                      # …/<book>/05/<round>
+    round_code = bundle.name
+    book = bundle.parent.parent     # …/<book>
+    return book, round_code
+
+
 def main(argv: list[str] | None = None) -> int:
     for stream in (sys.stdout, sys.stderr):
         try:
@@ -311,18 +328,28 @@ def main(argv: list[str] | None = None) -> int:
 
     p = argparse.ArgumentParser(prog="make_bundle_video.py",
                                 description="05 번들(deck.html) → 일반영상 static.mp4 + review.json")
+    p.add_argument("paths", nargs="*",
+                   help="드래그드롭된 번들 폴더/스크립트 json 경로(들). 주면 --book/--round 무시.")
     p.add_argument("--book", default="D:/00work/ocr-output-260723", help="책 루트")
-    p.add_argument("--round", default="", help="회차코드 (예: m01). 생략 시 05/ 아래 모든 회차")
+    p.add_argument("--round", default="", help="회차코드 (예: m01-1). 생략 시 05/ 아래 모든 회차")
     p.add_argument("--no-audio", action="store_true", help="음성/합성 생략(슬라이드 캡처만)")
     p.add_argument("--keep-scratch", action="store_true", help="munje/ 스크래치 번들 유지(디버그)")
     args = p.parse_args(argv)
+
+    # 드래그드롭 경로가 있으면 그것들만 (순차) 렌더
+    if args.paths:
+        for raw in args.paths:
+            book, rc = _resolve_book_round(Path(raw))
+            print(f"[drop] {raw} → book={book} round={rc}")
+            build(book, rc, not args.no_audio, args.keep_scratch)
+        return 0
 
     book = Path(args.book).resolve()
     if args.round:
         rounds = [args.round]
     else:
         d05 = book / "05"
-        rounds = sorted(p.name for p in d05.iterdir() if p.is_dir()) if d05.is_dir() else []
+        rounds = sorted(x.name for x in d05.iterdir() if x.is_dir()) if d05.is_dir() else []
     if not rounds:
         raise SystemExit(f"[error] 처리할 회차가 없습니다: {book}/05 (--round 로 지정)")
 
