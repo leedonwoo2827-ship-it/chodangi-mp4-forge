@@ -13,6 +13,18 @@ render.bat m01 --no-audio       REM 음성 없이 슬라이드만
 - 파이프라인: `lesson JSON → 대본 컴파일 → 슬라이드(+54321 카운트다운) → Supertonic3 음성/자막 → mp4maker(ffmpeg)`.
 - 단계별 세부 점검: `.venv\Scripts\python -m slides munje\ch01` / `... -m mp4maker munje\ch01` / `python make_video.py --help`.
 
+## 두 가지 슬라이드 경로 (밝은 deck.html 권장)
+| 경로 | 배치 | 슬라이드 | 입력 | 출력 |
+|---|---|---|---|---|
+| **deck (권장·밝음)** | `render-deck.bat m01` | exambook-forge가 집필한 밝은 `deck.html`을 headless Chromium 캡처 | `05\<회차>\`(source/deck.html + script/_series + review.json) | `05\<회차>\draft\<회차>.static.mp4` + review.json 갱신 |
+| legacy (Pillow·어두움) | `render.bat m01` | Pillow 로 직접 렌더 | `04\lesson_mNN.json` | `munje\chNN\draft` + `05\mNN.mp4` |
+
+- deck 경로 전제: **먼저 #2에서** `python scripts\bundle.py --book <book> --round m01` 로 `05\m01\` 번들 생성.
+- deck 경로 준비물(추가): `python -m playwright install chromium` (setup.bat 이 자동 시도).
+- **일반영상(static) 다음 = 리모션(키네틱)**: 클로드 데스크탑에서 `05\<회차>\script\<회차>_script.json`(_series)로
+  `draft\<회차>.motion.mp4` 생성 → `review.json.motionVideo` 갱신. 무거운 리모션 작업파일은 책 루트 밖.
+- 출력구조 단일 진실: exambook-forge `references/pipeline-output-structure.md`.
+
 ## 이 빌드의 커스터마이징 요약
 - **의존성 0 지향**: `requirements-render.txt`(onnxruntime·numpy·soundfile·pyyaml·pydantic·pysrt·lxml·Pillow)만으로 렌더 경로 동작. ComfyUI/LLM/PDF 계열 불필요. **Supertonic3** 는 `assets\`(HF `Supertone/supertonic-3`, onnx+voice_styles)로 완전 로컬 — PyTorch·클라우드·API키 없음.
 - **요약(5.요약노트) 프로세스 제거** — 라우트·서비스·웹 5번 탭 삭제.

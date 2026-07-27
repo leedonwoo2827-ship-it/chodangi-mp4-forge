@@ -13,6 +13,8 @@ lxml>=5.2.0
 
 # --- slides (문제집/강의 슬라이드 렌더) ---
 Pillow>=10.0        # 텍스트 슬라이드 프레임 렌더. 모션 클립은 ffmpeg 로 합성.
+playwright>=1.44    # 파이프라인 05: deck.html → 1920x1080 슬라이드 캡처(make_bundle_video.py).
+                    # 설치 후 1회: python -m playwright install chromium
 
 # --- 통합 웹앱 (FastAPI) ---
 fastapi>=0.110

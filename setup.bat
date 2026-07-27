@@ -21,6 +21,9 @@ echo [setup] Installing dependencies
 echo [setup] Checking ffmpeg
 where ffmpeg >nul 2>nul || echo [warn] ffmpeg not on PATH. Install: winget install Gyan.FFmpeg
 
+echo [setup] Installing Playwright Chromium (deck.html 슬라이드 캡처, 파이프라인 05)
+".venv\Scripts\python.exe" -m playwright install chromium || echo [warn] playwright chromium 설치 실패 - deck 캡처 경로(make_bundle_video.py)만 영향. Pillow 경로(make_video.py)는 정상.
+
 echo [setup] Checking TTS models (assets\onnx)
 if exist "assets\onnx\vocoder.onnx" (
   echo   models already present - skip.

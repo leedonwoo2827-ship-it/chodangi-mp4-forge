@@ -16,6 +16,12 @@ lxml>=5.2.0
 # --- slides (문제집 슬라이드 렌더) ---
 Pillow>=10.0
 
+# --- deck.html 슬라이드 캡처 (파이프라인 05: make_bundle_video.py) ---
+# 밝은 deck.html 을 headless Chromium 으로 1920x1080 캡처. 설치 후 브라우저 1회 설치 필요:
+#   python -m playwright install chromium
+# (기존 make_video.py = Pillow 경로는 playwright 없이도 동작 — deck 경로에서만 필요)
+playwright>=1.44
+
 # --- (선택) 웹 UI(run.bat)도 쓰려면 주석 해제 ---
 # fastapi>=0.110
 # uvicorn[standard]>=0.29
