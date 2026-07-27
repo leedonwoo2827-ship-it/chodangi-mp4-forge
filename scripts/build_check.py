@@ -103,8 +103,24 @@ def collect(book: Path, figs_dir: Path):
     return probs, copied, missing
 
 
+def _num_range(bundle_dir: Path) -> tuple[int, int] | None:
+    """번들의 문제 번호 min~max (라벨 '1~10번' 용)."""
+    for lj in (bundle_dir / "source").glob("lesson_*.json"):
+        try:
+            d = json.loads(lj.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        nums = [b.get("number") for b in (d.get("blocks") or []) if isinstance(b.get("number"), int)]
+        if nums:
+            return min(nums), max(nums)
+    return None
+
+
 def copy_videos(book: Path, out: Path, rounds: set[int]) -> dict:
-    """지정 회차의 draft/*.static.mp4 를 06/videos 로 복사하고 VIDEOS 맵 반환."""
+    """지정 회차의 draft/*.static.mp4 를 06/videos 로 복사하고 VIDEOS 맵 반환.
+
+    라벨은 문제 번호 범위: 'N회 1~10번' (파트=10문제 단위).
+    """
     vdir = out / "videos"
     vids: dict[str, list] = {}
     for d in sorted((book / "05").glob("*/")):
@@ -116,12 +132,13 @@ def copy_videos(book: Path, out: Path, rounds: set[int]) -> dict:
         if not mp4.exists():
             continue
         vdir.mkdir(parents=True, exist_ok=True)
-        dest = vdir / mp4.name
-        shutil.copy2(mp4, dest)
+        shutil.copy2(mp4, vdir / mp4.name)
+        rng = _num_range(d)
+        label = f"{rn}회 {rng[0]}~{rng[1]}번" if rng else (f"{rn}회 {part}부" if part else f"{rn}회")
         vids.setdefault(f"{rn}회", []).append(
-            {"label": f"{rn}회 {part}부" if part else f"{rn}회", "src": f"videos/{mp4.name}"})
+            {"label": label, "src": f"videos/{mp4.name}", "part": part})
     for k in vids:
-        vids[k].sort(key=lambda v: v["label"])
+        vids[k].sort(key=lambda v: v.get("part") or 0)
     return vids
 
 
