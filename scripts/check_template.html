@@ -62,6 +62,9 @@ code{ background:var(--gray-100); padding:1px 5px; border-radius:4px; font-famil
 .vid-list button:hover{ border-color:var(--blue-500); background:var(--blue-50); }
 .vid-empty{ color:var(--faint); font-size:13px; }
 .empty{ background:#fff; border:1px dashed var(--hairline-strong); border-radius:var(--r-lg); padding:40px; text-align:center; color:var(--muted); }
+.tbtn{ border:1px solid var(--hairline-strong); background:#fff; color:var(--muted); font:inherit; font-weight:700; font-size:13.5px; padding:8px 14px; border-radius:var(--r-full); cursor:pointer; }
+.tbtn.on{ background:var(--blue-600); color:#fff; border-color:var(--blue-600); }
+#tframe{ width:100%; height:1500px; border:1px solid var(--hairline); border-radius:var(--r-md); background:#fff; margin-top:14px; }
 /* video modal */
 .vmodal{ position:fixed; inset:0; background:rgba(15,23,42,.72); display:none; align-items:center; justify-content:center; z-index:60; padding:24px; }
 .vmodal.show{ display:flex; }
@@ -127,6 +130,7 @@ code{ background:var(--gray-100); padding:1px 5px; border-radius:4px; font-famil
 <script src="assets/ui.js"></script>
 <script src="problems.js"></script>
 <script src="videos.js"></script>
+<script src="theory.js"></script>
 <script>
 const CIRC="①②③④⑤⑥⑦⑧⑨⑩";
 const $=s=>document.querySelector(s);
@@ -161,7 +165,14 @@ function buildTabs(){
 
 function render(){
   const list=$("#list");
-  if(curRound==="이론"){ list.innerHTML='<div class="empty">이론 자료는 준비 중입니다. (영상 파이프라인에서 추가 예정)</div>'; updateGauge(); return; }
+  if(curRound==="이론"){
+    const T=window.THEORY||[];
+    if(!T.length){ list.innerHTML='<div class="empty">이론 자료가 없습니다.</div>'; updateGauge(); return; }
+    list.innerHTML='<div class="qcard"><div class="qhead" style="gap:8px">'
+      +T.map((t,i)=>'<button class="tbtn'+(i===0?' on':'')+'" data-h="'+t.href+'" onclick="showTheory(this)">'+esc(t.label)+'</button>').join("")
+      +'</div><iframe id="tframe" title="이론 요약노트" src="'+T[0].href+'"></iframe></div>';
+    updateGauge(); return;
+  }
   const rows=cur();
   if(!rows.length){ list.innerHTML='<div class="empty">표시할 문제가 없습니다.</div>'; updateGauge(); return; }
   list.innerHTML=rows.map(p=>{
@@ -218,6 +229,7 @@ function reveal(){ graded=true; cur().forEach(p=>{ const card=document.querySele
   card.querySelectorAll(".opt").forEach(el=>{ if(+el.dataset.ci===p.answer_index) el.classList.add("correct"); });
   card.querySelector(".expl").classList.add("show"); }); }
 function resetAll(){ answers={}; graded=false; render(); }
+function showTheory(btn){ document.querySelectorAll(".tbtn").forEach(b=>b.classList.remove("on")); btn.classList.add("on"); const f=document.getElementById("tframe"); if(f) f.src=btn.dataset.h; }
 
 function renderVideos(){
   const box=$("#vidList"); const vids=VIDEOS[curRound]||[];

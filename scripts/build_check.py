@@ -142,6 +142,29 @@ def copy_videos(book: Path, out: Path, rounds: set[int]) -> dict:
     return vids
 
 
+def copy_theory(book: Path, out: Path) -> list[dict]:
+    """03 요약노트(summary_*.html + assets) → 06/theory. 이론 탭 목록 반환."""
+    src = book / "03"
+    if not src.is_dir():
+        return []
+    tdir = out / "theory"
+    tdir.mkdir(parents=True, exist_ok=True)
+    stems = []
+    for f in src.glob("summary_*.html"):
+        shutil.copy2(f, tdir / f.name)
+        stems.append(f.stem)
+    if (src / "assets").is_dir():
+        shutil.copytree(src / "assets", tdir / "assets", dirs_exist_ok=True)
+
+    def label(stem: str) -> str:
+        if stem == "summary_index":
+            return "목차"
+        return stem.replace("summary_", "") + " 요약"
+
+    stems.sort(key=lambda s: (0 if s == "summary_index" else 1, s))
+    return [{"label": label(s), "href": f"theory/{s}.html"} for s in stems]
+
+
 def main(argv: list[str] | None = None) -> int:
     for st in (sys.stdout, sys.stderr):
         try:
@@ -178,11 +201,16 @@ def main(argv: list[str] | None = None) -> int:
         rounds = {int(x) for x in re.findall(r"\d+", vr)}
         vids = copy_videos(book, out, rounds)
 
-    # 4) 데이터 + 화면 파일
+    # 4) 이론(03 요약노트) → 06/theory
+    theory = copy_theory(book, out)
+
+    # 5) 데이터 + 화면 파일
     (out / "problems.js").write_text(
         "window.PROBLEMS = " + json.dumps(probs, ensure_ascii=False) + ";\n", encoding="utf-8")
     (out / "videos.js").write_text(
         "window.VIDEOS = " + json.dumps(vids, ensure_ascii=False) + ";\n", encoding="utf-8")
+    (out / "theory.js").write_text(
+        "window.THEORY = " + json.dumps(theory, ensure_ascii=False) + ";\n", encoding="utf-8")
     shutil.copy2(TEMPLATE, out / "check.html")
 
     n_rounds = len(set(p["round_num"] for p in probs if p["round_num"]))
