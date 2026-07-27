@@ -33,11 +33,18 @@ set "BOOK=D:\00work\ocr-output-260723"
 set "PY=.venv\Scripts\python.exe"
 
 if "%~1"=="" goto :all
+REM Flags like --force / --no-audio apply to the full 05\ scan.
+set "A1=%~1"
+if "!A1:~0,1!"=="-" goto :allflags
 REM Decide: dropped PATH (drag) vs ROUND code (typed). Path -> %~1 != %~nx1
 if "%~1"=="%~nx1" goto :roundmode
 
 REM ---- drag-and-drop: pass the dropped bundle/json path(s) straight through ----
 "%PY%" make_bundle_video.py %*
+goto :end
+
+:allflags
+"%PY%" make_bundle_video.py --book "%BOOK%" %*
 goto :end
 
 :roundmode

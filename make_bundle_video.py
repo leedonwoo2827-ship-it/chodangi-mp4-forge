@@ -334,9 +334,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--round", default="", help="회차코드 (예: m01-1). 생략 시 05/ 아래 모든 회차")
     p.add_argument("--no-audio", action="store_true", help="음성/합성 생략(슬라이드 캡처만)")
     p.add_argument("--keep-scratch", action="store_true", help="munje/ 스크래치 번들 유지(디버그)")
+    p.add_argument("--force", action="store_true",
+                   help="전체 스캔 시 이미 만들어진 번들도 다시 렌더(기본: 미완성만)")
     args = p.parse_args(argv)
 
-    # 드래그드롭 경로가 있으면 그것들만 (순차) 렌더
+    # 드래그드롭 경로가 있으면 그것들만 (순차) 렌더 — 명시 요청이므로 항상 렌더
     if args.paths:
         for raw in args.paths:
             book, rc = _resolve_book_round(Path(raw))
@@ -346,15 +348,27 @@ def main(argv: list[str] | None = None) -> int:
 
     book = Path(args.book).resolve()
     if args.round:
-        rounds = [args.round]
-    else:
-        d05 = book / "05"
-        rounds = sorted(x.name for x in d05.iterdir() if x.is_dir()) if d05.is_dir() else []
+        # 회차 명시 = 항상 렌더
+        build(book, args.round, not args.no_audio, args.keep_scratch)
+        return 0
+
+    # 전체 스캔: 05/ 아래 모든 번들. 기본은 '미완성만'(static.mp4 없는 것), --force 면 전부.
+    d05 = book / "05"
+    rounds = sorted(x.name for x in d05.iterdir() if x.is_dir()) if d05.is_dir() else []
     if not rounds:
         raise SystemExit(f"[error] 처리할 회차가 없습니다: {book}/05 (--round 로 지정)")
 
+    made, skipped = 0, []
     for rc in rounds:
+        done = (book / "05" / rc / "draft" / f"{rc}.static.mp4").exists()
+        if done and not args.force and not args.no_audio:
+            skipped.append(rc)
+            continue
         build(book, rc, not args.no_audio, args.keep_scratch)
+        made += 1
+    if skipped:
+        print(f"[skip] 이미 완료된 {len(skipped)}개 건너뜀: {', '.join(skipped)}")
+    print(f"[all] 렌더 {made}개 / 전체 {len(rounds)}개 (미완성만; 전체 재렌더는 --force)")
     return 0
 
 
