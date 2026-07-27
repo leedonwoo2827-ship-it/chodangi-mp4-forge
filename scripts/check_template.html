@@ -1,167 +1,243 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="utf-8">
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>정답 체크 · 문제집</title>
+<title>SQLD 문제풀이 · 정답 체크 — WOWPASS</title>
+<link rel="stylesheet" href="assets/style.css">
 <style>
-  :root{ --bg:#f7f9fc; --bg2:#eaf1fb; --fg:#1f2937; --muted:#64748b; --accent:#2563eb;
-         --card:#fff; --line:#e2e8f0; --ok:#16a34a; --okbg:#dcfce7; --bad:#dc2626; --badbg:#fee2e2; }
-  *{box-sizing:border-box}
-  body{margin:0;font-family:'Pretendard','Malgun Gothic','맑은 고딕',system-ui,sans-serif;
-       background:linear-gradient(135deg,var(--bg),var(--bg2));color:var(--fg);line-height:1.5}
-  .wrap{max-width:900px;margin:0 auto;padding:20px 16px 80px}
-  header{position:sticky;top:0;z-index:5;background:rgba(247,249,252,.95);backdrop-filter:blur(6px);
-         border-bottom:1px solid var(--line);padding:12px 0;margin-bottom:16px}
-  h1{font-size:22px;margin:0 0 8px;font-weight:800}
-  .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-  select,button{font:inherit;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--fg);cursor:pointer}
-  button.primary{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700}
-  .score{margin-left:auto;font-weight:800}
-  .score b{color:var(--accent)}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:14px 0;
-        box-shadow:0 6px 20px rgba(15,23,42,.05)}
-  .qhead{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
-  .chip{font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px}
-  .chip.num{background:var(--accent);color:#fff}
-  .chip.g{background:var(--line);color:var(--muted)}
-  .q{font-size:17px;font-weight:600;margin-bottom:12px;white-space:pre-wrap}
-  .choices{display:flex;flex-direction:column;gap:8px}
-  .choice{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);
-          border-radius:10px;cursor:pointer;background:#fff}
-  .choice:hover{border-color:var(--accent)}
-  .choice.sel{border-color:var(--accent);background:#eff6ff}
-  .choice.correct{border-color:var(--ok);background:var(--okbg)}
-  .choice.wrong{border-color:var(--bad);background:var(--badbg)}
-  .cnum{font-weight:800;color:var(--accent);flex:none}
-  .expl{margin-top:12px;padding:12px 14px;background:#f8fafc;border-left:4px solid var(--accent);
-        border-radius:8px;white-space:pre-wrap;display:none}
-  .expl.show{display:block}
-  .expl .lbl{font-weight:800;color:var(--accent);display:block;margin-bottom:4px}
-  code{background:#eef2f7;padding:1px 5px;border-radius:5px;font-family:Consolas,monospace}
-  .muted{color:var(--muted)}
+.page{ background:var(--surface-soft); min-height:100vh; padding-bottom:64px; }
+.crumb-bar{ background:#fff; border-bottom:1px solid var(--hairline); }
+.crumb-bar .wrap{ display:flex; align-items:center; height:54px; }
+.crumb{ font-size:13.5px; color:var(--muted); display:flex; gap:8px; align-items:center; }
+.crumb b{ color:var(--ink); } .crumb .sep{ color:var(--faint); }
+.head-block{ padding:30px 0 6px; }
+.head-block h1{ font-size:30px; }
+.head-block .sub{ color:var(--muted); margin-top:6px; font-size:15px; }
+.layout{ display:grid; grid-template-columns:1fr 312px; gap:26px; align-items:start; margin-top:18px; }
+.tabs-round{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+.tabs-round button{ border:1px solid var(--hairline-strong); background:#fff; color:var(--muted);
+  font:inherit; font-weight:700; font-size:14px; padding:9px 16px; border-radius:var(--r-full); cursor:pointer; }
+.tabs-round button.on{ background:var(--navy-700); color:#fff; border-color:var(--navy-700); }
+.filters{ display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
+.filters select{ height:40px; }
+.qcard{ background:#fff; border:1px solid var(--hairline); border-radius:var(--r-xl); box-shadow:var(--shadow-card);
+  padding:22px 24px; margin:14px 0; }
+.qhead{ display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+.qnum{ font-weight:800; color:#fff; background:var(--blue-600); font-size:13px; padding:4px 12px; border-radius:var(--r-full); }
+.q{ font-size:16.5px; font-weight:600; color:var(--ink); white-space:pre-wrap; }
+.passage{ margin-top:12px; padding:13px 15px; background:var(--surface-soft2); border-radius:var(--r-md);
+  font-size:14.5px; color:var(--body); white-space:pre-wrap; }
+pre.sql{ margin:12px 0 0; background:#0f172a; color:#e2e8f0; border-radius:var(--r-md); padding:14px 16px;
+  overflow-x:auto; font-family:Consolas,'D2Coding',monospace; font-size:13.5px; line-height:1.5; }
+table.qtable{ border-collapse:collapse; margin:12px 0 0; font-size:14px; }
+table.qtable th,table.qtable td{ border:1px solid var(--hairline-strong); padding:7px 14px; text-align:center; }
+table.qtable th{ background:var(--surface-strong); font-weight:700; color:var(--ink); }
+img.fig{ margin:12px 0 0; max-width:520px; border:1px solid var(--hairline); border-radius:var(--r-md); background:#fff; padding:8px; }
+.opts{ display:flex; flex-direction:column; gap:8px; margin-top:14px; }
+.opt{ display:flex; gap:11px; align-items:flex-start; padding:11px 14px; border:1px solid var(--hairline-strong);
+  border-radius:var(--r-md); cursor:pointer; background:#fff; font-size:15px; color:var(--body); }
+.opt:hover{ border-color:var(--blue-500); }
+.opt.sel{ border-color:var(--blue-600); background:var(--blue-50); }
+.opt.correct{ border-color:var(--success); background:var(--success-soft); }
+.opt.wrong{ border-color:var(--danger); background:var(--danger-soft); }
+.opt .cn{ font-weight:800; color:var(--blue-600); flex:0 0 auto; }
+.opt.correct .cn{ color:var(--success-text); } .opt.wrong .cn{ color:var(--danger-text); }
+.expl{ margin-top:14px; padding:14px 16px; background:var(--surface-soft); border-left:4px solid var(--blue-600);
+  border-radius:var(--r-md); font-size:14.5px; color:var(--body); white-space:pre-wrap; display:none; }
+.expl.show{ display:block; }
+.expl .lbl{ font-weight:800; color:var(--blue-700); display:block; margin-bottom:6px; }
+code{ background:var(--gray-100); padding:1px 5px; border-radius:4px; font-family:Consolas,monospace; font-size:.92em; }
+.side{ position:sticky; top:18px; display:flex; flex-direction:column; gap:16px; }
+.side-card{ background:#fff; border:1px solid var(--hairline); border-radius:var(--r-xl); box-shadow:var(--shadow-card); padding:22px; }
+.side-card h3{ font-size:16px; margin-bottom:16px; display:flex; align-items:center; gap:9px; }
+.gauge-wrap{ display:flex; align-items:center; gap:16px; }
+.gauge-wrap .big{ font-size:23px; font-weight:800; color:var(--blue-600); line-height:1; }
+.gauge-wrap .big small{ font-size:14px; color:var(--muted); font-weight:700; }
+.gauge-wrap .k2{ font-size:12.5px; color:var(--muted); margin-top:4px; }
+.side-actions{ display:flex; flex-direction:column; gap:10px; margin-top:18px; }
+.vid-list{ display:flex; flex-direction:column; gap:8px; }
+.vid-list button{ display:flex; align-items:center; gap:10px; width:100%; text-align:left; border:1px solid var(--hairline-strong);
+  background:#fff; border-radius:var(--r-md); padding:11px 13px; font:inherit; font-size:14px; color:var(--ink); font-weight:600; cursor:pointer; }
+.vid-list button:hover{ border-color:var(--blue-500); background:var(--blue-50); }
+.vid-empty{ color:var(--faint); font-size:13px; }
+.empty{ background:#fff; border:1px dashed var(--hairline-strong); border-radius:var(--r-lg); padding:40px; text-align:center; color:var(--muted); }
+/* video modal */
+.vmodal{ position:fixed; inset:0; background:rgba(15,23,42,.72); display:none; align-items:center; justify-content:center; z-index:60; padding:24px; }
+.vmodal.show{ display:flex; }
+.vmodal .box{ background:#000; border-radius:var(--r-lg); overflow:hidden; max-width:1000px; width:100%; }
+.vmodal video{ width:100%; display:block; }
+.vmodal .vclose{ position:absolute; top:20px; right:26px; color:#fff; font-size:30px; cursor:pointer; }
+@media (max-width:920px){ .layout{ grid-template-columns:1fr; } .side{ position:static; } }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>정답 체크 · 문제집</h1>
-    <div class="bar">
-      <select id="fRound"><option value="">전체 회차</option></select>
-      <select id="fSubject"><option value="">전체 과목</option></select>
-      <select id="fDiff"><option value="">전체 난이도</option></select>
-      <button class="primary" id="btnGrade">채점하기</button>
-      <button id="btnReveal">정답 보기</button>
-      <button id="btnReset">초기화</button>
-      <span class="score" id="score"></span>
+<div class="page">
+  <nav class="topnav">
+    <div class="brand"><img class="logo-mark dark" src="assets/logo_wowpass.png" alt="Wowpass" onerror="this.style.display='none'"><span class="brand-sub">SQLD 문제집</span></div>
+    <div class="nav-right"><span class="nav-link"><svg class="ic ic-sm"><use href="#i-help"></use></svg> 이용 가이드</span></div>
+  </nav>
+  <div class="crumb-bar"><div class="wrap">
+    <div class="crumb"><svg class="ic"><use href="#i-list"></use></svg> 홈<span class="sep">›</span><span>문제집</span><span class="sep">›</span><b>정답 체크</b></div>
+  </div></div>
+
+  <div class="wrap">
+    <div class="head-block">
+      <h1>문제풀이 · 정답 체크</h1>
+      <div class="sub">보기를 고르고 <b>채점하기</b>를 누르면 정답·해설이 표시됩니다. 회차를 선택해 풀어보세요.</div>
     </div>
-  </header>
-  <div id="list"></div>
+
+    <div class="tabs-round" id="tabsRound"></div>
+
+    <div class="layout">
+      <div>
+        <div class="filters">
+          <select class="input" id="fSubject" style="max-width:220px"><option value="">전체 과목</option></select>
+          <select class="input" id="fDiff" style="max-width:160px"><option value="">전체 난이도</option></select>
+        </div>
+        <div id="list"></div>
+      </div>
+
+      <aside class="side">
+        <div class="side-card">
+          <h3><span class="icon-box sm soft"><svg class="ic ic-sm"><use href="#i-check-circle"></use></svg></span> 채점 현황</h3>
+          <div class="gauge-wrap">
+            <div id="gauge"></div>
+            <div><div class="big"><span id="scoreNum">0</span> <small>/ <span id="scoreTot">0</span></small></div><div class="k2" id="scoreK">응답/점수</div></div>
+          </div>
+          <div class="side-actions">
+            <button class="btn btn-blue btn-block" onclick="grade()"><svg class="ic"><use href="#i-check"></use></svg> 채점하기</button>
+            <button class="btn btn-outline btn-block" onclick="reveal()">정답 보기</button>
+            <button class="btn btn-outline btn-block" onclick="resetAll()"><svg class="ic"><use href="#i-refresh"></use></svg> 초기화</button>
+          </div>
+        </div>
+        <div class="side-card">
+          <h3><span class="icon-box sm soft"><svg class="ic ic-sm"><use href="#i-play"></use></svg></span> 해설 영상</h3>
+          <div class="vid-list" id="vidList"><div class="vid-empty">이 회차의 영상이 없습니다.</div></div>
+        </div>
+      </aside>
+    </div>
+  </div>
 </div>
+
+<div class="vmodal" id="vmodal"><span class="vclose" onclick="closeVid()">×</span><div class="box"><video id="vplayer" controls></video></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="assets/app.js"></script>
+<script src="assets/ui.js"></script>
 <script src="problems.js"></script>
+<script src="videos.js"></script>
 <script>
-const CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩";
-const $ = s => document.querySelector(s);
-const P = (window.PROBLEMS || []);
-let answers = {};   // key -> chosen index
+const CIRC="①②③④⑤⑥⑦⑧⑨⑩";
+const $=s=>document.querySelector(s);
+const P=(window.PROBLEMS||[]);
+const VIDEOS=(window.VIDEOS||{});
+let curRound=null, answers={}, graded=false;
 
-function esc(s){ return (s||"").replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
-function mdlite(s){
-  s = esc(s);
-  s = s.replace(/!\[[^\]]*\]\([^)]*\)/g, "");        // 이미지 마크다운 제거
-  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-  s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
-  return s;
-}
-function key(p, i){ return (p.bundle||p.round||"") + "#" + (p.number ?? i); }
+function esc(s){return (s||"").replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function md(s){ s=esc(s);
+  s=s.replace(/!\[[^\]]*\]\(([^)\s]+)[^)]*\)/g,(m,u)=>'<img class="fig" src="figs/'+u.split(/[\\\/]/).pop()+'" onerror="this.style.display=\'none\'">');
+  s=s.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+  s=s.replace(/`([^`]+)`/g,'<code>$1</code>'); return s; }
+function keyOf(p){ return (p.bundle||"")+"#"+(p.number); }
+function uniq(a){ return [...new Set(a.filter(v=>v!=null&&v!==""))]; }
 
-function fillFilter(sel, vals){
-  for(const v of vals){ const o=document.createElement("option"); o.value=v; o.textContent=v; sel.appendChild(o); }
-}
-function uniq(arr){ return [...new Set(arr.filter(Boolean))]; }
+function tableHtml(t){ if(!t||!t.columns) return "";
+  let h="<table class='qtable'><thead><tr>"+t.columns.map(c=>"<th>"+esc(String(c))+"</th>").join("")+"</tr></thead><tbody>";
+  (t.rows||[]).forEach(r=>{ h+="<tr>"+r.map(c=>"<td>"+esc(String(c))+"</td>").join("")+"</tr>"; });
+  return h+"</tbody></table>"; }
 
-function filtered(){
-  const r=$("#fRound").value, s=$("#fSubject").value, d=$("#fDiff").value;
-  return P.filter(p => (!r||p.round===r) && (!s||(p.subject||"")===s) && (!d||(p.difficulty||"")===d));
+function rounds(){ return uniq(P.map(p=>p.round)).sort((a,b)=>(parseInt(a)||0)-(parseInt(b)||0)); }
+function cur(){ return P.filter(p=>p.round===curRound
+  && (!$("#fSubject").value||(p.subject||"")===$("#fSubject").value)
+  && (!$("#fDiff").value||(p.difficulty||"")===$("#fDiff").value)); }
+
+function buildTabs(){
+  const t=$("#tabsRound"); const rs=rounds();
+  const all=["이론",...rs];
+  t.innerHTML=all.map(r=>'<button data-r="'+r+'"'+(r===curRound?' class="on"':'')+'>'+r+'</button>').join("");
+  t.querySelectorAll("button").forEach(b=>b.onclick=()=>{ curRound=b.dataset.r; answers={}; graded=false; buildTabs(); renderVideos(); render(); });
 }
 
 function render(){
-  const list=$("#list"); list.innerHTML="";
-  const rows=filtered();
-  if(rows.length===0){
-    list.innerHTML = `<div class="card muted">${$("#fRound").value==="이론"
-      ? "이론 자료는 준비 중입니다 (영상 파이프라인에서 추가 예정)."
-      : "표시할 문제가 없습니다."}</div>`;
-    return;
-  }
-  rows.forEach((p,i)=>{
-    const k=key(p,i);
-    const card=document.createElement("div"); card.className="card"; card.dataset.key=k;
-    let ch="";
-    (p.choices||[]).forEach((c,ci)=>{
-      ch += `<div class="choice" data-k="${k}" data-ci="${ci}"><span class="cnum">${CIRCLED[ci]||ci+1}</span><span>${mdlite(c)}</span></div>`;
-    });
-    card.innerHTML = `
-      <div class="qhead">
-        <span class="chip num">${p.round?esc(p.round)+" · ":""}${p.number!=null?p.number+"번":""}</span>
-        ${p.subject?`<span class="chip g">${esc(p.subject)}</span>`:""}
-        ${p.difficulty?`<span class="chip g">난이도 ${esc(p.difficulty)}</span>`:""}
-      </div>
-      <div class="q">${mdlite(p.question)}</div>
-      <div class="choices">${ch}</div>
-      <div class="expl"><span class="lbl">해설 (정답 ${CIRCLED[p.answer_index]||p.answer||""})</span>${mdlite(p.explanation)}</div>`;
-    list.appendChild(card);
-  });
-  // restore selections
-  document.querySelectorAll(".choice").forEach(el=>{
-    if(answers[el.dataset.k]===+el.dataset.ci) el.classList.add("sel");
-  });
+  const list=$("#list");
+  if(curRound==="이론"){ list.innerHTML='<div class="empty">이론 자료는 준비 중입니다. (영상 파이프라인에서 추가 예정)</div>'; updateGauge(); return; }
+  const rows=cur();
+  if(!rows.length){ list.innerHTML='<div class="empty">표시할 문제가 없습니다.</div>'; updateGauge(); return; }
+  list.innerHTML=rows.map(p=>{
+    const k=keyOf(p);
+    let opts=(p.choices||[]).map((c,ci)=>'<div class="opt" data-k="'+k+'" data-ci="'+ci+'"><span class="cn">'+(CIRC[ci]||(ci+1))+'</span><span>'+md(c)+'</span></div>').join("");
+    let mid="";
+    if(p.passage) mid+='<div class="passage">'+md(p.passage)+'</div>';
+    if(p.sql) mid+='<pre class="sql"><code>'+esc(p.sql)+'</code></pre>';
+    if(p.table) mid+=tableHtml(p.table);
+    (p.figures||[]).forEach(f=>{ mid+='<img class="fig" src="figs/'+f+'" onerror="this.style.display=\'none\'">'; });
+    return '<div class="qcard" data-k="'+k+'">'
+      +'<div class="qhead"><span class="qnum">'+esc(p.round)+' · '+(p.number!=null?p.number+'번':'')+'</span>'
+      +(p.subject?'<span class="pill pill-teal"><span class="dot"></span>'+esc(p.subject)+'</span>':'')
+      +(p.difficulty?'<span class="pill pill-orange">난이도 '+esc(p.difficulty)+'</span>':'')+'</div>'
+      +'<div class="q">'+md(p.question)+'</div>'+mid
+      +'<div class="opts">'+opts+'</div>'
+      +'<div class="expl"><span class="lbl">해설 (정답 '+(CIRC[p.answer_index]||p.answer||'')+')</span>'+md(p.explanation)+'</div></div>';
+  }).join("");
+  document.querySelectorAll(".opt").forEach(el=>{ if(answers[el.dataset.k]===+el.dataset.ci) el.classList.add("sel"); });
+  updateGauge();
 }
 
-document.addEventListener("click", e=>{
-  const c=e.target.closest(".choice"); if(!c) return;
-  const k=c.dataset.k, ci=+c.dataset.ci;
-  answers[k]=ci;
-  c.parentElement.querySelectorAll(".choice").forEach(x=>x.classList.remove("sel"));
-  c.classList.add("sel");
+document.addEventListener("click",e=>{
+  const o=e.target.closest(".opt"); if(!o||graded) return;
+  const k=o.dataset.k, ci=+o.dataset.ci; answers[k]=ci;
+  o.parentElement.querySelectorAll(".opt").forEach(x=>x.classList.remove("sel")); o.classList.add("sel");
+  updateGauge();
 });
 
+function updateGauge(){
+  const rows=cur(); const tot=rows.length;
+  if(!graded){
+    const ans=rows.filter(p=>answers[keyOf(p)]!=null).length;
+    $("#scoreNum").textContent=ans; $("#scoreTot").textContent=tot; $("#scoreK").textContent="입력한 문항";
+    const pct=tot?Math.round(ans/tot*100):0;
+    $("#gauge").innerHTML=WPUI.donut({pct,label:pct+"%",color:"var(--blue-600)",size:78,stroke:9,labelColor:"var(--blue-600)"});
+  }
+}
 function grade(){
-  let ok=0, tot=0;
-  filtered().forEach((p,i)=>{
-    const k=key(p,i); const card=document.querySelector(`.card[data-key="${CSS.escape(k)}"]`); if(!card) return;
-    tot++;
+  if(curRound==="이론"){ toast("이론은 채점 대상이 아닙니다."); return; }
+  graded=true; const rows=cur(); let ok=0;
+  rows.forEach(p=>{ const k=keyOf(p); const card=document.querySelector('.qcard[data-k="'+CSS.escape(k)+'"]'); if(!card) return;
     const chosen=answers[k];
-    card.querySelectorAll(".choice").forEach(el=>{
-      el.classList.remove("correct","wrong");
-      const ci=+el.dataset.ci;
-      if(ci===p.answer_index) el.classList.add("correct");
-      else if(ci===chosen) el.classList.add("wrong");
-    });
+    card.querySelectorAll(".opt").forEach(el=>{ const ci=+el.dataset.ci; el.classList.remove("sel");
+      if(ci===p.answer_index) el.classList.add("correct"); else if(ci===chosen) el.classList.add("wrong"); });
     if(chosen===p.answer_index) ok++;
-    card.querySelector(".expl").classList.add("show");
-  });
-  $("#score").innerHTML = `점수 <b>${ok}</b> / ${tot}`;
+    card.querySelector(".expl").classList.add("show"); });
+  const tot=rows.length, pct=tot?Math.round(ok/tot*100):0;
+  $("#scoreNum").textContent=ok; $("#scoreTot").textContent=tot; $("#scoreK").textContent="정답 / 점수 "+pct+"%";
+  $("#gauge").innerHTML=WPUI.donut({pct,label:pct+"%",color:pct>=60?"var(--success)":"var(--danger)",size:78,stroke:9,labelColor:pct>=60?"var(--success-text)":"var(--danger-text)"});
+  toast(tot+"문항 중 "+ok+"문항 정답 ("+pct+"%)");
 }
-function reveal(){
-  filtered().forEach((p,i)=>{
-    const k=key(p,i); const card=document.querySelector(`.card[data-key="${CSS.escape(k)}"]`); if(!card) return;
-    card.querySelectorAll(".choice").forEach(el=>{ if(+el.dataset.ci===p.answer_index) el.classList.add("correct"); });
-    card.querySelector(".expl").classList.add("show");
-  });
+function reveal(){ graded=true; cur().forEach(p=>{ const card=document.querySelector('.qcard[data-k="'+CSS.escape(keyOf(p))+'"]'); if(!card) return;
+  card.querySelectorAll(".opt").forEach(el=>{ if(+el.dataset.ci===p.answer_index) el.classList.add("correct"); });
+  card.querySelector(".expl").classList.add("show"); }); }
+function resetAll(){ answers={}; graded=false; render(); }
+
+function renderVideos(){
+  const box=$("#vidList"); const vids=VIDEOS[curRound]||[];
+  if(!vids.length){ box.innerHTML='<div class="vid-empty">이 회차의 영상이 없습니다.</div>'; return; }
+  box.innerHTML=vids.map((v,i)=>'<button onclick="openVid(\''+v.src.replace(/'/g,"\\'")+'\')"><svg class="ic ic-sm"><use href="#i-play"></use></svg>'+esc(v.label)+'</button>').join("");
 }
-function reset(){ answers={}; $("#score").textContent=""; render(); }
+function openVid(src){ const p=$("#vplayer"); p.src=src; $("#vmodal").classList.add("show"); p.play().catch(()=>{}); }
+function closeVid(){ const p=$("#vplayer"); p.pause(); p.removeAttribute("src"); p.load(); $("#vmodal").classList.remove("show"); }
+$("#vmodal").addEventListener("click",e=>{ if(e.target.id==="vmodal") closeVid(); });
 
-$("#btnGrade").onclick=grade;
-$("#btnReveal").onclick=reveal;
-$("#btnReset").onclick=reset;
-["#fRound","#fSubject","#fDiff"].forEach(s=>$(s).onchange=()=>{$("#score").textContent="";render();});
+let tt; function toast(m){ const t=$("#toast"); t.textContent=m; t.classList.add("show"); clearTimeout(tt); tt=setTimeout(()=>t.classList.remove("show"),1900); }
 
-fillFilter($("#fRound"), ["이론", ...uniq(P.map(p=>p.round))]);
-fillFilter($("#fSubject"), uniq(P.map(p=>p.subject)));
-fillFilter($("#fDiff"), uniq(P.map(p=>p.difficulty)));
-$("#score").innerHTML = `총 <b>${P.length}</b>문제`;
-render();
+// init
+(function(){
+  const subs=uniq(P.map(p=>p.subject)); subs.forEach(s=>{ const o=document.createElement("option"); o.value=s; o.textContent=s; $("#fSubject").appendChild(o); });
+  const diffs=uniq(P.map(p=>p.difficulty)); diffs.forEach(s=>{ const o=document.createElement("option"); o.value=s; o.textContent=s; $("#fDiff").appendChild(o); });
+  ["#fSubject","#fDiff"].forEach(s=>$(s).onchange=()=>{ answers={}; graded=false; render(); });
+  const rs=rounds(); curRound=rs.length?rs[0]:"이론";
+  buildTabs(); renderVideos(); render();
+})();
 </script>
 </body>
 </html>
