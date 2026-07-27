@@ -143,16 +143,35 @@ def copy_videos(book: Path, out: Path, rounds: set[int]) -> dict:
 
 
 def copy_theory(book: Path, out: Path) -> list[dict]:
-    """03 요약노트(summary_*.html + assets) → 06/theory. 이론 탭 목록 반환."""
+    """03 요약노트(summary_*.html + assets) → 06/theory. 이론 탭 목록 반환.
+
+    한글 파일명(summary_데이터모델링.html 등)은 리눅스 호스팅에서 링크가 깨지므로
+    ASCII 파일명으로 바꾸고, HTML 내부의 상호 링크도 함께 치환한다.
+    """
     src = book / "03"
     if not src.is_dir():
         return []
     tdir = out / "theory"
     tdir.mkdir(parents=True, exist_ok=True)
-    stems = []
-    for f in src.glob("summary_*.html"):
-        shutil.copy2(f, tdir / f.name)
-        stems.append(f.stem)
+
+    files = sorted(src.glob("summary_*.html"))
+    # 파일명 → ASCII 파일명 매핑 (한글 등 non-ASCII 는 summary_koN.html 로)
+    name_map: dict[str, str] = {}
+    i = 0
+    for f in files:
+        if f.name.isascii():
+            name_map[f.name] = f.name
+        else:
+            i += 1
+            name_map[f.name] = f"summary_ko{i}.html"
+
+    # 복사하면서 내부 상호 링크(old→new) 치환
+    for f in files:
+        txt = f.read_text(encoding="utf-8")
+        for old, new in name_map.items():
+            if old != new:
+                txt = txt.replace(old, new)
+        (tdir / name_map[f.name]).write_text(txt, encoding="utf-8")
     if (src / "assets").is_dir():
         shutil.copytree(src / "assets", tdir / "assets", dirs_exist_ok=True)
 
@@ -161,8 +180,8 @@ def copy_theory(book: Path, out: Path) -> list[dict]:
             return "목차"
         return stem.replace("summary_", "") + " 요약"
 
-    stems.sort(key=lambda s: (0 if s == "summary_index" else 1, s))
-    return [{"label": label(s), "href": f"theory/{s}.html"} for s in stems]
+    ordered = sorted(files, key=lambda f: (0 if f.stem == "summary_index" else 1, f.name))
+    return [{"label": label(f.stem), "href": f"theory/{name_map[f.name]}"} for f in ordered]
 
 
 def main(argv: list[str] | None = None) -> int:
