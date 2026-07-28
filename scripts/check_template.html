@@ -72,6 +72,17 @@ pre.sql code{ background:none; padding:0; border-radius:0; color:inherit; font-s
 .vid-empty{ color:var(--faint); font-size:13px; }
 .empty{ background:#fff; border:1px dashed var(--hairline-strong); border-radius:var(--r-lg); padding:40px; text-align:center; color:var(--muted); }
 .theorybox{ width:100%; min-height:70vh; border:1px solid var(--hairline); border-radius:var(--r-lg); background:#fff; box-shadow:var(--shadow-card); overflow:hidden; }
+/* 카탈로그(홈) */
+.cat{ display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:18px; }
+.cat-card{ background:#fff; border:1px solid var(--hairline); border-radius:var(--r-xl); box-shadow:var(--shadow-card); padding:20px 22px; display:flex; flex-direction:column; }
+.cat-card h3{ font-size:17px; margin-bottom:14px; display:flex; align-items:center; gap:9px; }
+.cat-videos{ display:flex; flex-direction:column; gap:7px; margin-bottom:14px; }
+.cat-videos button, .catbtn{ display:flex; align-items:center; gap:9px; text-align:left; border:1px solid var(--hairline-strong); background:#fff; border-radius:var(--r-md); padding:10px 12px; font:inherit; font-size:13.5px; color:var(--ink); font-weight:600; cursor:pointer; }
+.cat-videos button{ width:100%; }
+.cat-videos button:hover, .catbtn:hover{ border-color:var(--blue-500); background:var(--blue-50); }
+.cat-card .btn{ width:100%; margin-top:auto; }
+.cat-theory{ grid-column:1/-1; }
+.cat-theory .cat-row{ display:flex; gap:10px; flex-wrap:wrap; }
 /* 이론 모드: 사이드 숨기고 전체폭 */
 .layout.tmode{ grid-template-columns:1fr; }
 .layout.tmode .side{ display:none; }
@@ -94,6 +105,7 @@ pre.sql code{ background:none; padding:0; border-radius:0; color:inherit; font-s
   <nav class="topnav">
     <div class="brand"><img class="logo-mark dark" src="assets/logo_wowpass.png" alt="Wowpass" onerror="this.style.display='none'"><span class="brand-sub">SQLD 문제집</span></div>
     <div class="modes" id="modes">
+      <button data-m="home">홈</button>
       <button data-m="theory">이론</button>
       <button data-m="quiz">회차별 모의고사</button>
     </div>
@@ -210,22 +222,28 @@ function tableHtml(t){ if(!t||!t.columns) return "";
 function setMode(m){
   mode=m; answers={}; graded=false;
   document.querySelectorAll("#modes button").forEach(b=>b.classList.toggle("on",b.dataset.m===m));
-  $("#layout").classList.toggle("tmode", m==="theory");
+  $("#layout").classList.toggle("tmode", m!=="quiz");      // home/theory = 전체폭(사이드 숨김)
   $("#filters").style.display = (m==="quiz") ? "flex" : "none";
+  $("#subtabs").style.display = (m==="home") ? "none" : "flex";
   if(m==="quiz"){ const rs=rounds(); curRound=curRound&&rs.includes(curRound)?curRound:(rs[0]||null);
     $("#pgTitle").textContent="회차별 모의고사 · 정답 체크"; $("#pgSub").textContent="보기를 고르고 채점하기를 누르면 정답·해설이 표시됩니다."; }
-  else{ curTheory=curTheory||(THEORY[0]&&THEORY[0].href)||null;
+  else if(m==="theory"){ curTheory=curTheory||(THEORY[0]&&THEORY[0].href)||null;
     $("#pgTitle").textContent="이론 요약노트"; $("#pgSub").textContent="과목별 핵심 개념 요약입니다."; }
+  else{ $("#pgTitle").textContent="SQLD 문제집"; $("#pgSub").textContent="이론 요약과 회차별 모의고사 — 해설 영상 · 정답 체크"; }
   buildSub(); render();
 }
+function goTheory(href){ curTheory=href; setMode("theory"); }
+function goQuiz(r){ curRound=r; setMode("quiz"); }
 function buildSub(){
   const box=$("#subtabs");
+  if(mode==="home"){ box.innerHTML=""; return; }
   if(mode==="quiz"){ box.innerHTML=rounds().map(r=>'<button data-v="'+r+'"'+(r===curRound?' class="on"':'')+'>'+r+'</button>').join("");
     box.querySelectorAll("button").forEach(b=>b.onclick=()=>{ curRound=b.dataset.v; answers={}; graded=false; buildSub(); renderVideos(); render(); updateCrumb(); }); }
   else{ box.innerHTML=THEORY.map(t=>'<button data-v="'+t.href+'"'+(t.href===curTheory?' class="on"':'')+'>'+esc(t.label)+'</button>').join("");
     box.querySelectorAll("button").forEach(b=>b.onclick=()=>{ curTheory=b.dataset.v; buildSub(); render(); updateCrumb(); }); }
 }
 function updateCrumb(){
+  if(mode==="home"){ $("#cMode").textContent="홈"; $("#cSubWrap").style.display="none"; return; }
   if(mode==="quiz"){ $("#cMode").textContent="회차별 모의고사"; $("#cSubWrap").style.display=""; $("#cSub").textContent=curRound||""; }
   else{ $("#cMode").textContent="이론"; const t=THEORY.find(x=>x.href===curTheory); $("#cSubWrap").style.display= t?"":"none"; $("#cSub").textContent=t?t.label:""; }
 }
@@ -233,6 +251,7 @@ function updateCrumb(){
 function render(){
   updateCrumb();
   const list=$("#list");
+  if(mode==="home"){ renderHome(list); return; }
   if(mode==="theory"){
     if(!THEORY.length){ list.innerHTML='<div class="empty">이론 자료가 없습니다.</div>'; return; }
     list.innerHTML='<div id="tbody" class="theorybox"></div>';
@@ -288,6 +307,23 @@ function reveal(){ if(mode!=="quiz") return; graded=true; cur().forEach(p=>{ con
   card.querySelector(".expl").classList.add("show"); }); }
 function resetAll(){ answers={}; graded=false; render(); }
 
+function renderHome(list){
+  let h='<div class="cat">';
+  if(THEORY.length){
+    h+='<div class="cat-card cat-theory"><h3><span class="icon-box sm soft"><svg class="ic ic-sm"><use href="#i-book"></use></svg></span> 이론 요약노트</h3><div class="cat-row">'
+      +THEORY.map(t=>'<button class="catbtn" onclick="goTheory(\''+t.href+'\')"><svg class="ic ic-sm"><use href="#i-doc"></use></svg>'+esc(t.label)+'</button>').join("")
+      +'</div></div>';
+  }
+  rounds().forEach(r=>{ const vids=VIDEOS[r]||[];
+    h+='<div class="cat-card"><h3><span class="icon-box sm soft"><svg class="ic ic-sm"><use href="#i-clipboard"></use></svg></span> '+esc(r)+' 모의고사</h3>';
+    h+='<div class="cat-videos">'+(vids.length
+        ? vids.map(v=>'<button onclick="openVid(\''+v.src+'\')"><svg class="ic ic-sm"><use href="#i-play"></use></svg>'+esc(v.label)+'</button>').join("")
+        : '<div class="vid-empty">영상 준비 중</div>')+'</div>';
+    h+='<button class="btn btn-blue" onclick="goQuiz(\''+r+'\')">문제 풀기 <svg class="ic"><use href="#i-arrow-right"></use></svg></button></div>';
+  });
+  h+='</div>'; list.innerHTML=h;
+}
+
 /* iframe 대신 'include' 방식: 요약 HTML 을 fetch 해서 Shadow DOM 에 주입(스타일 격리).
    상대경로(assets/svg 등)는 theory/ 기준으로 보정, 내부 요약 링크는 다시 fetch 로 로드. */
 /* fetch/iframe 없이: 구워넣은 window.THEORY_HTML 을 Shadow DOM 에 주입 → file://·서버 둘 다 동작. */
@@ -319,7 +355,7 @@ let tt; function toast(m){ const t=$("#toast"); t.textContent=m; t.classList.add
   ["#fSubject","#fDiff"].forEach(s=>$(s).onchange=()=>{ answers={}; graded=false; render(); });
   document.querySelectorAll("#modes button").forEach(b=>b.onclick=()=>setMode(b.dataset.m));
   curRound=(rounds()[0]||null); curTheory=(THEORY[0]&&THEORY[0].href)||null;
-  setMode("quiz"); renderVideos();
+  setMode("home"); renderVideos();
 })();
 </script>
 </body>

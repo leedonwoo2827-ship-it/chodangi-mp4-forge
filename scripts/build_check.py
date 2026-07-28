@@ -209,7 +209,7 @@ def main(argv: list[str] | None = None) -> int:
                                  description="05 → 정답 체크 정적 웹(06, WOWPASS 디자인)")
     ap.add_argument("--book", default="D:/00work/ocr-output-260723")
     ap.add_argument("--out", default="")
-    ap.add_argument("--video-rounds", default="1", help="영상 복사할 회차(콤마). 예: 1,2  · 'none'=복사 안 함")
+    ap.add_argument("--video-rounds", default="all", help="영상 복사할 회차(콤마). 예: 1,2 · 'all'=전 회차 · 'none'=복사 안 함")
     args = ap.parse_args(argv)
 
     book = Path(args.book).resolve()
@@ -231,7 +231,11 @@ def main(argv: list[str] | None = None) -> int:
     if vr in ("", "none"):
         vids = {}
     else:
-        rounds = {int(x) for x in re.findall(r"\d+", vr)}
+        if vr == "all":
+            rounds = {_parse_bundle(d.name)[0] for d in (book / "05").glob("*/") if d.is_dir()}
+            rounds.discard(0)
+        else:
+            rounds = {int(x) for x in re.findall(r"\d+", vr)}
         vids = copy_videos(book, out, rounds)
 
     # 4) 이론(03 요약노트) → 목록 + 내용(구워넣기)
