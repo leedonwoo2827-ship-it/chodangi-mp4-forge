@@ -21,11 +21,13 @@ SLIDE_W, SLIDE_H = 1920, 1080
 
 
 def capture_deck(deck_html: str | Path, out_dir: str | Path,
-                 filenames: list[str]) -> tuple[list[Path], int]:
+                 filenames: list[str]) -> tuple[list[Path], int, list[tuple[int, int]]]:
     """deck.html 의 `.slide` 들을 순서대로 PNG 로 캡처.
 
     filenames[i] = i번째 캡처 슬라이드 저장 파일명(캡처 씬 순서와 1:1).
-    Returns (저장경로 목록, deck 내 실제 .slide 개수).
+    Returns (저장경로 목록, deck 내 실제 .slide 개수, 넘침 목록).
+    넘침 목록 = `.slide` 콘텐츠가 1080px 를 넘어 잘린 슬라이드 [(0-based 인덱스, 초과 px)].
+    (#2 build-deck 의 페이지 분할이 제대로 됐는지 렌더 시점에 확인하는 용도.)
     """
     from playwright.sync_api import sync_playwright  # 지연 import (선택 의존성)
 
@@ -45,6 +47,12 @@ def capture_deck(deck_html: str | Path, out_dir: str | Path,
             pass
         page.wait_for_timeout(300)
         slides = page.query_selector_all(".slide")
+        try:
+            metrics = page.eval_on_selector_all(
+                ".slide", "els => els.map(e => [e.scrollHeight, e.clientHeight])")
+        except Exception:
+            metrics = []
+        overflow = [(i, sh - ch) for i, (sh, ch) in enumerate(metrics) if sh > ch + 1]
         n = min(len(slides), len(filenames))
         for i in range(n):
             try:
@@ -55,7 +63,7 @@ def capture_deck(deck_html: str | Path, out_dir: str | Path,
             slides[i].screenshot(path=str(dest))
             saved.append(dest)
         browser.close()
-    return saved, len(slides)
+    return saved, len(slides), overflow
 
 
 # --------------------------------------------------------------------------- Pillow 헬퍼

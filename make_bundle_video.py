@@ -156,10 +156,22 @@ def build(book: Path, round_code: str, do_audio: bool, keep_scratch: bool) -> Pa
 
     # 1) deck.html 캡처 → 캡처 씬 이미지
     cap_files = [r["image_filename"] for r in recs if r["capture"]]
-    saved, deck_slides = deck_capture.capture_deck(deck, scratch / "images", cap_files)
+    saved, deck_slides, overflow = deck_capture.capture_deck(deck, scratch / "images", cap_files)
     print(f"[make] deck 캡처: {len(saved)}/{n_cap}  (deck .slide={deck_slides})")
     if deck_slides != n_cap:
-        print(f"[warn] deck 슬라이드({deck_slides}) ≠ 캡처 씬({n_cap}) — 슬라이드/씬 1:1 확인 필요")
+        # 어긋나면 캡처가 앞에서부터 잘려 이미지↔음성 인덱스가 통째로 밀린다 → 중단.
+        raise SystemExit(
+            f"[error] deck 슬라이드({deck_slides}) ≠ 캡처 씬({n_cap}) — 슬라이드/씬 1:1 이 깨졌습니다.\n"
+            f"        이대로 만들면 이미지와 음성이 어긋난 영상이 나옵니다.\n"
+            f"        deck : {deck}\n"
+            f"        script: {series_path}\n"
+            f"        #2 에서 deck.html 과 script.json 을 같은 슬라이드 수로 다시 생성하세요\n"
+            f"        (페이지 분할로 슬라이드가 늘면 씬·narration_text 도 같이 늘어야 합니다).")
+    if overflow:
+        worst = ", ".join(f"{i+1}번째 +{px}px" for i, px in overflow[:8])
+        more = f" 외 {len(overflow)-8}장" if len(overflow) > 8 else ""
+        print(f"[warn] 내용이 슬라이드(1080px)를 넘어 잘린 슬라이드 {len(overflow)}장: {worst}{more}")
+        print("       #2 build-deck 의 페이지 분할이 필요합니다(보기 4개는 반드시 전부 보여야 함).")
 
     # 2) 카운트다운/간격 프레임·클립 (밝게)
     ffmpeg_ok = shutil.which("ffmpeg") is not None
