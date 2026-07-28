@@ -14,10 +14,11 @@
 .head-block{ padding:28px 0 4px; }
 .head-block h1{ font-size:28px; }
 .head-block .sub{ color:var(--muted); margin-top:6px; font-size:14.5px; }
+.topnav .modes{ margin:0; }
 .modes{ display:inline-flex; background:var(--surface-soft); border:1px solid var(--hairline-strong);
-  border-radius:var(--r-md); padding:4px; gap:4px; margin:16px 0 12px; }
+  border-radius:var(--r-md); padding:4px; gap:4px; }
 .modes button{ border:0; background:transparent; font:inherit; font-weight:800; font-size:15px; color:var(--muted);
-  padding:10px 22px; border-radius:var(--r-sm); cursor:pointer; }
+  padding:9px 20px; border-radius:var(--r-sm); cursor:pointer; white-space:nowrap; }
 .modes button.on{ background:var(--navy-700); color:#fff; box-shadow:var(--shadow-xs); }
 .subtabs{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
 .subtabs button{ border:1px solid var(--hairline-strong); background:#fff; color:var(--muted); font:inherit;
@@ -61,7 +62,7 @@ code{ background:var(--gray-100); padding:1px 5px; border-radius:4px; font-famil
 .vid-list button:hover{ border-color:var(--blue-500); background:var(--blue-50); }
 .vid-empty{ color:var(--faint); font-size:13px; }
 .empty{ background:#fff; border:1px dashed var(--hairline-strong); border-radius:var(--r-lg); padding:40px; text-align:center; color:var(--muted); }
-#tframe{ width:100%; height:80vh; border:1px solid var(--hairline); border-radius:var(--r-lg); background:#fff; box-shadow:var(--shadow-card); }
+.theorybox{ width:100%; min-height:70vh; border:1px solid var(--hairline); border-radius:var(--r-lg); background:#fff; box-shadow:var(--shadow-card); overflow:hidden; }
 /* 이론 모드: 사이드 숨기고 전체폭 */
 .layout.tmode{ grid-template-columns:1fr; }
 .layout.tmode .side{ display:none; }
@@ -71,12 +72,22 @@ code{ background:var(--gray-100); padding:1px 5px; border-radius:4px; font-famil
 .vmodal video{ width:100%; display:block; }
 .vmodal .vclose{ position:absolute; top:20px; right:26px; color:#fff; font-size:30px; cursor:pointer; }
 @media (max-width:920px){ .layout{ grid-template-columns:1fr; } .side{ position:static; } }
+@media (max-width:760px){
+  .topnav{ flex-wrap:wrap; height:auto; padding:10px 16px; gap:8px; }
+  .topnav .nav-right{ display:none; }
+  .modes{ order:3; width:100%; }
+  .modes button{ flex:1; padding:9px 10px; font-size:14px; }
+}
 </style>
 </head>
 <body>
 <div class="page">
   <nav class="topnav">
     <div class="brand"><img class="logo-mark dark" src="assets/logo_wowpass.png" alt="Wowpass" onerror="this.style.display='none'"><span class="brand-sub">SQLD 문제집</span></div>
+    <div class="modes" id="modes">
+      <button data-m="theory">이론</button>
+      <button data-m="quiz">회차별 모의고사</button>
+    </div>
     <div class="nav-right"><span class="nav-link"><svg class="ic ic-sm"><use href="#i-help"></use></svg> 이용 가이드</span></div>
   </nav>
   <div class="crumb-bar"><div class="wrap">
@@ -89,10 +100,6 @@ code{ background:var(--gray-100); padding:1px 5px; border-radius:4px; font-famil
       <div class="sub" id="pgSub">과목별 핵심 개념 요약입니다.</div>
     </div>
 
-    <div class="modes" id="modes">
-      <button data-m="theory">이론</button>
-      <button data-m="quiz">회차별 모의고사</button>
-    </div>
     <div class="subtabs" id="subtabs"></div>
 
     <div class="layout" id="layout">
@@ -181,7 +188,8 @@ function render(){
   const list=$("#list");
   if(mode==="theory"){
     if(!THEORY.length){ list.innerHTML='<div class="empty">이론 자료가 없습니다.</div>'; return; }
-    list.innerHTML='<iframe id="tframe" title="이론 요약노트" src="'+(curTheory||THEORY[0].href)+'"></iframe>'; return;
+    list.innerHTML='<div id="tbody" class="theorybox"></div>';
+    loadTheory(curTheory||THEORY[0].href); return;
   }
   const rows=cur();
   if(!rows.length){ list.innerHTML='<div class="empty">표시할 문제가 없습니다.</div>'; updateGauge(); return; }
@@ -232,6 +240,33 @@ function reveal(){ if(mode!=="quiz") return; graded=true; cur().forEach(p=>{ con
   card.querySelectorAll(".opt").forEach(el=>{ if(+el.dataset.ci===p.answer_index) el.classList.add("correct"); });
   card.querySelector(".expl").classList.add("show"); }); }
 function resetAll(){ answers={}; graded=false; render(); }
+
+/* iframe 대신 'include' 방식: 요약 HTML 을 fetch 해서 Shadow DOM 에 주입(스타일 격리).
+   상대경로(assets/svg 등)는 theory/ 기준으로 보정, 내부 요약 링크는 다시 fetch 로 로드. */
+async function loadTheory(href){
+  const box=document.getElementById("tbody"); if(!box) return;
+  const base=href.slice(0, href.lastIndexOf("/")+1);   // "theory/"
+  const sh=box.shadowRoot||box.attachShadow({mode:"open"});
+  sh.innerHTML='<div style="padding:22px;color:#64748b;font-family:sans-serif">불러오는 중…</div>';
+  try{
+    const res=await fetch(href, {cache:"no-cache"}); if(!res.ok) throw new Error("HTTP "+res.status);
+    const doc=new DOMParser().parseFromString(await res.text(), "text/html");
+    doc.querySelectorAll("[src],[href]").forEach(el=>["src","href"].forEach(a=>{
+      const v=el.getAttribute(a);
+      if(v && !/^(https?:|data:|#|\/|mailto:)/i.test(v)) el.setAttribute(a, base+v.replace(/^theory\//,""));
+    }));
+    let styles=""; doc.querySelectorAll("style").forEach(s=>{ styles+=s.textContent.replace(/(^|[^-\w.#])body\b/g,"$1:host"); });
+    sh.innerHTML='<style>:host{display:block;background:#fff}</style><style>'+styles+'</style>'+doc.body.innerHTML;
+    sh.querySelectorAll('a[href]').forEach(a=>{ const h=a.getAttribute("href")||"";
+      if(/summary_[^"']*\.html/.test(h)){ a.addEventListener("click",ev=>{
+        ev.preventDefault(); const nm=h.split("/").pop(); curTheory="theory/"+nm; buildSub(); loadTheory(curTheory);
+        window.scrollTo({top:0,behavior:"smooth"}); }); }
+    });
+  }catch(e){
+    sh.innerHTML='<div style="padding:26px;color:#c22638;font-family:sans-serif">이론을 불러오지 못했습니다 ('+e.message
+      +'). <br>서버에 <b>theory</b> 폴더가 함께 업로드됐는지 확인하세요. (로컬 파일 열기(file://)에선 보안상 안 보일 수 있어 서버에서 확인)</div>';
+  }
+}
 
 function renderVideos(){
   const box=$("#vidList"); const vids=VIDEOS[curRound]||[];
