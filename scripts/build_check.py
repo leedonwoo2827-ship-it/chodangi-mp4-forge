@@ -142,20 +142,22 @@ def copy_videos(book: Path, out: Path, rounds: set[int]) -> dict:
     return vids
 
 
-def copy_theory(book: Path, out: Path) -> list[dict]:
-    """03 요약노트(summary_*.html + assets) → 06/theory. 이론 탭 목록 반환.
+def build_theory(book: Path, out: Path) -> tuple[list[dict], dict]:
+    """03 요약노트 → 이론 탭 목록 + 내용(JS 에 구워넣을 dict) 반환.
 
-    한글 파일명(summary_데이터모델링.html 등)은 리눅스 호스팅에서 링크가 깨지므로
-    ASCII 파일명으로 바꾸고, HTML 내부의 상호 링크도 함께 치환한다.
+    fetch/iframe 없이 file://·서버 둘 다 되도록, 각 요약 HTML 의 <style>+<body> 를 추출해
+    theory_content.js(window.THEORY_HTML)로 굽는다. 도식 SVG 는 06/theory/assets 로 복사하고
+    상대경로를 theory/ 기준으로 보정. 한글 파일명은 ASCII 키로 치환.
     """
     src = book / "03"
     if not src.is_dir():
-        return []
+        return [], {}
     tdir = out / "theory"
     tdir.mkdir(parents=True, exist_ok=True)
+    if (src / "assets").is_dir():
+        shutil.copytree(src / "assets", tdir / "assets", dirs_exist_ok=True)
 
     files = sorted(src.glob("summary_*.html"))
-    # 파일명 → ASCII 파일명 매핑 (한글 등 non-ASCII 는 summary_koN.html 로)
     name_map: dict[str, str] = {}
     i = 0
     for f in files:
@@ -165,35 +167,35 @@ def copy_theory(book: Path, out: Path) -> list[dict]:
             i += 1
             name_map[f.name] = f"summary_ko{i}.html"
 
-    # 복사하면서 내부 상호 링크(old→new) 치환
-    for f in files:
-        txt = f.read_text(encoding="utf-8")
-        for old, new in name_map.items():
-            if old != new:
-                txt = txt.replace(old, new)
-        (tdir / name_map[f.name]).write_text(txt, encoding="utf-8")
-    if (src / "assets").is_dir():
-        shutil.copytree(src / "assets", tdir / "assets", dirs_exist_ok=True)
-
     def subject_of(html: str) -> tuple[int, str]:
         m = re.search(r"<h1[^>]*>([^<]*)</h1>", html) or re.search(r"<title>([^<]*)</title>", html)
         t = (m.group(1) if m else "").strip()
         mm = re.search(r"(\d+)\s*과목\s*[·:\-—\s]*(.*)", t)
-        if mm:
-            return int(mm.group(1)), mm.group(2).strip(" —-·")
-        return 99, t
+        return (int(mm.group(1)), mm.group(2).strip(" —-·")) if mm else (99, t)
 
-    # 목차(index)는 하위 탭에서 제외(파일은 복사됨). 과목 요약만 1과목/2과목으로.
-    items = []
+    content: dict[str, str] = {}
+    items: list[dict] = []
     for f in files:
-        if f.stem == "summary_index":
-            continue
-        html = (tdir / name_map[f.name]).read_text(encoding="utf-8")
-        n, name = subject_of(html)
-        lab = f"{n}과목 · {name}" if n != 99 else (f.stem.replace("summary_", "") + " 요약")
-        items.append({"label": lab, "href": f"theory/{name_map[f.name]}", "sub": n})
+        raw = f.read_text(encoding="utf-8")
+        styles = "".join(re.findall(r"<style[^>]*>(.*?)</style>", raw, re.S))
+        mb = re.search(r"<body[^>]*>(.*?)</body>", raw, re.S)
+        body = mb.group(1) if mb else raw
+        # 내부 상호 링크 한글→ASCII
+        for old, new in name_map.items():
+            if old != new:
+                body = body.replace(old, new)
+        # 상대경로(assets 등) → theory/ 기준으로 (http:,data:,#,/,theory/ 는 제외)
+        body = re.sub(r'(src|href)="(?!https?:|data:|#|/|theory/)([^"]+)"', r'\1="theory/\2"', body)
+        # <style> 의 body 셀렉터 → :host (Shadow DOM 격리)
+        styles = re.sub(r'(^|[^-\w.#])body\b', r'\1:host', styles)
+        key = f"theory/{name_map[f.name]}"
+        content[key] = "<style>:host{display:block;background:#fff}</style><style>" + styles + "</style>" + body
+        if f.stem != "summary_index":
+            n, name = subject_of(raw)
+            lab = f"{n}과목 · {name}" if n != 99 else (f.stem.replace("summary_", "") + " 요약")
+            items.append({"label": lab, "href": key, "sub": n})
     items.sort(key=lambda x: x["sub"])
-    return items
+    return items, content
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -232,8 +234,8 @@ def main(argv: list[str] | None = None) -> int:
         rounds = {int(x) for x in re.findall(r"\d+", vr)}
         vids = copy_videos(book, out, rounds)
 
-    # 4) 이론(03 요약노트) → 06/theory
-    theory = copy_theory(book, out)
+    # 4) 이론(03 요약노트) → 목록 + 내용(구워넣기)
+    theory, theory_html = build_theory(book, out)
 
     # 5) 데이터 + 화면 파일
     (out / "problems.js").write_text(
@@ -242,6 +244,8 @@ def main(argv: list[str] | None = None) -> int:
         "window.VIDEOS = " + json.dumps(vids, ensure_ascii=False) + ";\n", encoding="utf-8")
     (out / "theory.js").write_text(
         "window.THEORY = " + json.dumps(theory, ensure_ascii=False) + ";\n", encoding="utf-8")
+    (out / "theory_content.js").write_text(
+        "window.THEORY_HTML = " + json.dumps(theory_html, ensure_ascii=False) + ";\n", encoding="utf-8")
     shutil.copy2(TEMPLATE, out / "check.html")
 
     n_rounds = len(set(p["round_num"] for p in probs if p["round_num"]))

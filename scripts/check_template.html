@@ -138,6 +138,7 @@ code{ background:var(--gray-100); padding:1px 5px; border-radius:4px; font-famil
 <script src="problems.js"></script>
 <script src="videos.js"></script>
 <script src="theory.js"></script>
+<script src="theory_content.js"></script>
 <script>
 const CIRC="①②③④⑤⑥⑦⑧⑨⑩";
 const $=s=>document.querySelector(s);
@@ -243,29 +244,17 @@ function resetAll(){ answers={}; graded=false; render(); }
 
 /* iframe 대신 'include' 방식: 요약 HTML 을 fetch 해서 Shadow DOM 에 주입(스타일 격리).
    상대경로(assets/svg 등)는 theory/ 기준으로 보정, 내부 요약 링크는 다시 fetch 로 로드. */
-async function loadTheory(href){
+/* fetch/iframe 없이: 구워넣은 window.THEORY_HTML 을 Shadow DOM 에 주입 → file://·서버 둘 다 동작. */
+function loadTheory(href){
   const box=document.getElementById("tbody"); if(!box) return;
-  const base=href.slice(0, href.lastIndexOf("/")+1);   // "theory/"
+  const html=(window.THEORY_HTML||{})[href];
   const sh=box.shadowRoot||box.attachShadow({mode:"open"});
-  sh.innerHTML='<div style="padding:22px;color:#64748b;font-family:sans-serif">불러오는 중…</div>';
-  try{
-    const res=await fetch(href, {cache:"no-cache"}); if(!res.ok) throw new Error("HTTP "+res.status);
-    const doc=new DOMParser().parseFromString(await res.text(), "text/html");
-    doc.querySelectorAll("[src],[href]").forEach(el=>["src","href"].forEach(a=>{
-      const v=el.getAttribute(a);
-      if(v && !/^(https?:|data:|#|\/|mailto:)/i.test(v)) el.setAttribute(a, base+v.replace(/^theory\//,""));
-    }));
-    let styles=""; doc.querySelectorAll("style").forEach(s=>{ styles+=s.textContent.replace(/(^|[^-\w.#])body\b/g,"$1:host"); });
-    sh.innerHTML='<style>:host{display:block;background:#fff}</style><style>'+styles+'</style>'+doc.body.innerHTML;
-    sh.querySelectorAll('a[href]').forEach(a=>{ const h=a.getAttribute("href")||"";
-      if(/summary_[^"']*\.html/.test(h)){ a.addEventListener("click",ev=>{
-        ev.preventDefault(); const nm=h.split("/").pop(); curTheory="theory/"+nm; buildSub(); loadTheory(curTheory);
-        window.scrollTo({top:0,behavior:"smooth"}); }); }
-    });
-  }catch(e){
-    sh.innerHTML='<div style="padding:26px;color:#c22638;font-family:sans-serif">이론을 불러오지 못했습니다 ('+e.message
-      +'). <br>서버에 <b>theory</b> 폴더가 함께 업로드됐는지 확인하세요. (로컬 파일 열기(file://)에선 보안상 안 보일 수 있어 서버에서 확인)</div>';
-  }
+  if(!html){ sh.innerHTML='<div style="padding:26px;color:#c22638;font-family:sans-serif">이론 내용을 찾을 수 없습니다. (theory_content.js 업로드 확인)</div>'; return; }
+  sh.innerHTML=html;
+  sh.querySelectorAll('a[href]').forEach(a=>{ const h=a.getAttribute("href")||"";
+    const m=h.match(/summary_[^"'\/]*\.html/);
+    if(m){ a.addEventListener("click",ev=>{ ev.preventDefault(); curTheory="theory/"+m[0]; buildSub(); loadTheory(curTheory); window.scrollTo({top:0,behavior:"smooth"}); }); }
+  });
 }
 
 function renderVideos(){
