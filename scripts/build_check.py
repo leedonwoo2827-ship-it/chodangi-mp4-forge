@@ -175,13 +175,25 @@ def copy_theory(book: Path, out: Path) -> list[dict]:
     if (src / "assets").is_dir():
         shutil.copytree(src / "assets", tdir / "assets", dirs_exist_ok=True)
 
-    def label(stem: str) -> str:
-        if stem == "summary_index":
-            return "목차"
-        return stem.replace("summary_", "") + " 요약"
+    def subject_of(html: str) -> tuple[int, str]:
+        m = re.search(r"<h1[^>]*>([^<]*)</h1>", html) or re.search(r"<title>([^<]*)</title>", html)
+        t = (m.group(1) if m else "").strip()
+        mm = re.search(r"(\d+)\s*과목\s*[·:\-—\s]*(.*)", t)
+        if mm:
+            return int(mm.group(1)), mm.group(2).strip(" —-·")
+        return 99, t
 
-    ordered = sorted(files, key=lambda f: (0 if f.stem == "summary_index" else 1, f.name))
-    return [{"label": label(f.stem), "href": f"theory/{name_map[f.name]}"} for f in ordered]
+    # 목차(index)는 하위 탭에서 제외(파일은 복사됨). 과목 요약만 1과목/2과목으로.
+    items = []
+    for f in files:
+        if f.stem == "summary_index":
+            continue
+        html = (tdir / name_map[f.name]).read_text(encoding="utf-8")
+        n, name = subject_of(html)
+        lab = f"{n}과목 · {name}" if n != 99 else (f.stem.replace("summary_", "") + " 요약")
+        items.append({"label": lab, "href": f"theory/{name_map[f.name]}", "sub": n})
+    items.sort(key=lambda x: x["sub"])
+    return items
 
 
 def main(argv: list[str] | None = None) -> int:
