@@ -30,8 +30,15 @@
 .qcard{ background:#fff; border:1px solid var(--hairline); border-radius:var(--r-xl); box-shadow:var(--shadow-card); padding:22px 24px; margin:14px 0; }
 .qhead{ display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
 .qnum{ font-weight:800; color:#fff; background:var(--blue-600); font-size:13px; padding:4px 12px; border-radius:var(--r-full); }
-.q{ font-size:16.5px; font-weight:600; color:var(--ink); white-space:pre-wrap; }
-.passage{ margin-top:12px; padding:13px 15px; background:var(--surface-soft2); border-radius:var(--r-md); font-size:14.5px; color:var(--body); white-space:pre-wrap; }
+.q{ font-size:16.5px; font-weight:600; color:var(--ink); }
+.passage{ margin-top:12px; padding:13px 15px; background:var(--surface-soft2); border-radius:var(--r-md); font-size:14.5px; color:var(--body); }
+/* mdb() 가 블록(p/ul/table/pre)으로 렌더하므로 pre-wrap 대신 블록 간격으로 맞춘다 */
+.q>p,.passage>p,.expl>p{ margin:.45em 0; }
+.q>*:first-child,.passage>*:first-child,.expl>*:first-child{ margin-top:0; }
+.q>*:last-child,.passage>*:last-child,.expl>*:last-child{ margin-bottom:0; }
+.q ul,.passage ul,.expl ul{ margin:.45em 0; padding-left:1.25em; }
+.q li,.passage li,.expl li{ margin:.25em 0; }
+.passage table.qtable,.expl table.qtable{ background:#fff; }
 pre.sql{ margin:12px 0 0; background:#0f172a; color:#e2e8f0; border-radius:var(--r-md); padding:14px 16px; overflow-x:auto; font-family:Consolas,'D2Coding',monospace; font-size:13.5px; line-height:1.5; }
 table.qtable{ border-collapse:collapse; margin:12px 0 0; font-size:14px; }
 table.qtable th,table.qtable td{ border:1px solid var(--hairline-strong); padding:7px 14px; text-align:center; }
@@ -49,6 +56,8 @@ img.fig{ margin:12px 0 0; max-width:520px; border:1px solid var(--hairline); bor
 .expl.show{ display:block; }
 .expl .lbl{ font-weight:800; color:var(--blue-700); display:block; margin-bottom:6px; }
 code{ background:var(--gray-100); padding:1px 5px; border-radius:4px; font-family:Consolas,monospace; font-size:.92em; }
+/* 코드블록 안에서는 인라인 code 스타일(밝은 배경·어두운 글자)을 끈다 — 어두운 박스에 묻힌다 */
+pre.sql code{ background:none; padding:0; border-radius:0; color:inherit; font-size:inherit; }
 .side{ position:sticky; top:18px; display:flex; flex-direction:column; gap:16px; }
 .side-card{ background:#fff; border:1px solid var(--hairline); border-radius:var(--r-xl); box-shadow:var(--shadow-card); padding:22px; }
 .side-card h3{ font-size:16px; margin-bottom:16px; display:flex; align-items:center; gap:9px; }
@@ -151,6 +160,43 @@ function esc(s){return (s||"").replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':
 function md(s){ s=esc(s);
   s=s.replace(/!\[[^\]]*\]\(([^)\s]+)[^)]*\)/g,(m,u)=>'<img class="fig" src="figs/'+u.split(/[\\\/]/).pop()+'" onerror="this.style.display=\'none\'">');
   s=s.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>'); s=s.replace(/`([^`]+)`/g,'<code>$1</code>'); return s; }
+// 블록 마크다운 — #2 bundle.py 의 md_blocks 와 같은 규칙(표·불릿·맨텍스트 SQL).
+// lesson 의 표/SQL 은 `table`/`sql` 필드가 아니라 지문 안에 텍스트로 들어오는 경우가 많아,
+// 이걸 렌더하지 않으면 "| 상품명 | 분류코드 |" 가 그대로 노출된다(영상 덱과도 어긋난다).
+const SQL_START=/^\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|WITH|MERGE|TRUNCATE)\b/i;
+const SQL_CONT=/^\s*(FROM|WHERE|GROUP\s+BY|ORDER\s+BY|HAVING|UNION|MINUS|INTERSECT|JOIN|LEFT|RIGHT|INNER|FULL|CROSS|OUTER|ON|AND|OR|SET|VALUES|START\s+WITH|CONNECT\s+BY|[(),])/i;
+const SQL_OK=/\b(FROM|VALUES|SET)\b|;/i;
+const BULLET=/^([-*•]|\d+[.)])\s+/;
+function sqlRun(L,i){ if(!SQL_START.test(L[i])) return null;
+  const buf=[]; let j=i;
+  while(j<L.length && L[j].trim() && (j===i||SQL_START.test(L[j])||SQL_CONT.test(L[j])||/^[ \t]/.test(L[j]))){ buf.push(L[j].replace(/\s+$/,"")); j++; }
+  const code=buf.join("\n").trim(); return SQL_OK.test(code)?[j,code]:null; }
+function mdTable(rows){
+  const cells=rows.map(r=>r.trim().replace(/^\||\|$/g,"").split("|").map(c=>c.trim()));
+  let head=[]; if(cells.length>1 && cells[1].every(c=>/^:?-{2,}:?$/.test(c||"-"))){ head=cells[0]; cells.splice(0,2); }
+  return "<table class='qtable'>"+(head.length?"<thead><tr>"+head.map(c=>"<th>"+md(c)+"</th>").join("")+"</tr></thead>":"")
+    +"<tbody>"+cells.map(r=>"<tr>"+r.map(c=>"<td>"+md(c)+"</td>").join("")+"</tr>").join("")+"</tbody></table>"; }
+function mdb(s){
+  const L=String(s||"").replace(/\r\n/g,"\n").split("\n"); let out="", i=0;
+  while(i<L.length){ const st=L[i].trim();
+    if(!st){ i++; continue; }
+    if(st.startsWith("```")){ const lang=st.slice(3).trim().toLowerCase(); i++; const buf=[];
+      while(i<L.length && !L[i].trim().startsWith("```")){ buf.push(L[i]); i++; } i++;
+      const code=buf.join("\n").trim();
+      out+="<pre class='sql'><code>"+esc(code)+"</code></pre>"; continue; }
+    if(st.startsWith("|")){ const buf=[]; while(i<L.length && L[i].trim().startsWith("|")){ buf.push(L[i]); i++; }
+      out+=mdTable(buf); continue; }
+    const run=sqlRun(L,i);
+    if(run){ i=run[0]; out+="<pre class='sql'><code>"+esc(run[1])+"</code></pre>"; continue; }
+    if(BULLET.test(st)){ const buf=[]; while(i<L.length && BULLET.test(L[i].trim())){ buf.push(L[i].trim().replace(BULLET,"")); i++; }
+      out+="<ul>"+buf.map(x=>"<li>"+md(x)+"</li>").join("")+"</ul>"; continue; }
+    const buf=[];
+    while(i<L.length){ const c=L[i].trim();
+      if(!c||c.startsWith("|")||c.startsWith("```")||BULLET.test(c)) break;
+      if(buf.length&&sqlRun(L,i)) break;
+      buf.push(c); i++; }
+    out+="<p>"+md(buf.join(" "))+"</p>"; }
+  return out; }
 function keyOf(p){ return (p.bundle||"")+"#"+(p.number); }
 function uniq(a){ return [...new Set(a.filter(v=>v!=null&&v!==""))]; }
 function rounds(){ return uniq(P.map(p=>p.round)).sort((a,b)=>(parseInt(a)||0)-(parseInt(b)||0)); }
@@ -198,15 +244,15 @@ function render(){
     const k=keyOf(p);
     let opts=(p.choices||[]).map((c,ci)=>'<div class="opt" data-k="'+k+'" data-ci="'+ci+'"><span class="cn">'+(CIRC[ci]||(ci+1))+'</span><span>'+md(c)+'</span></div>').join("");
     let mid="";
-    if(p.passage) mid+='<div class="passage">'+md(p.passage)+'</div>';
+    if(p.passage) mid+='<div class="passage">'+mdb(p.passage)+'</div>';
     if(p.sql) mid+='<pre class="sql"><code>'+esc(p.sql)+'</code></pre>';
     if(p.table) mid+=tableHtml(p.table);
     (p.figures||[]).forEach(f=>{ mid+='<img class="fig" src="figs/'+f+'" onerror="this.style.display=\'none\'">'; });
     return '<div class="qcard" data-k="'+k+'"><div class="qhead"><span class="qnum">'+esc(p.round)+' · '+(p.number!=null?p.number+'번':'')+'</span>'
       +(p.subject?'<span class="pill pill-teal"><span class="dot"></span>'+esc(p.subject)+'</span>':'')
       +(p.difficulty?'<span class="pill pill-orange">난이도 '+esc(p.difficulty)+'</span>':'')+'</div>'
-      +'<div class="q">'+md(p.question)+'</div>'+mid+'<div class="opts">'+opts+'</div>'
-      +'<div class="expl"><span class="lbl">해설 (정답 '+(CIRC[p.answer_index]||p.answer||'')+')</span>'+md(p.explanation)+'</div></div>';
+      +'<div class="q">'+mdb(p.question)+'</div>'+mid+'<div class="opts">'+opts+'</div>'
+      +'<div class="expl"><span class="lbl">해설 (정답 '+(CIRC[p.answer_index]||p.answer||'')+')</span>'+mdb(p.explanation)+'</div></div>';
   }).join("");
   document.querySelectorAll(".opt").forEach(el=>{ if(answers[el.dataset.k]===+el.dataset.ci) el.classList.add("sel"); });
   updateGauge();
