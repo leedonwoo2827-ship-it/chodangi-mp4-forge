@@ -26,6 +26,10 @@ assets/fonts/*
 # 통합 요약노트 산출물
 _book/
 
+# 로컬 렌더 작업 폴더 — 여기에 05\<번들> 을 복사해 넣고 render.bat 실행(README 만 추적)
+work/*
+!work/README.txt
+
 # 파이썬
 .venv/
 __pycache__/

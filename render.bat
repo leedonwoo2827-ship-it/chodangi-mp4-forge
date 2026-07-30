@@ -14,6 +14,8 @@ REM    render.bat                     -> render ALL bundles under 05\  (double-c
 REM    render.bat m01-1               -> one bundle only  (from cmd)
 REM    render.bat m01-1 --no-audio    -> slides capture only (skip voice/mux)
 REM    [drag] drop a bundle folder or script\*.json ONTO this render.bat (multiple OK)
+REM    [copy-and-run] put your 05\<bundle> folders into  work\05\  next to this file,
+REM                  then double-click render.bat -> renders everything in work\05\.
 REM
 REM  First time once: .venv\Scripts\python -m playwright install chromium
 REM  (to preview design fast, just open 05\<bundle>\source\deck.html in a browser)
@@ -28,8 +30,11 @@ if not exist ".venv\Scripts\python.exe" (
   pause & exit /b 1
 )
 
-REM Book root (folder that holds the 04/05 stages). Edit this one line if needed.
+REM Book root (folder that holds the 04/05 stages).
+REM  우선순위: 로컬 work\05\ 에 번들을 복사해 넣었으면 그걸 쓰고, 없으면 아래 기본 경로.
+REM  → 다른 책/과목도 render.bat 옆 work\05\ 에 05\<번들> 폴더만 복사하면 여기서 전체 렌더.
 set "BOOK=D:\00work\ocr-output-260723"
+if exist "%~dp0work\05" set "BOOK=%~dp0work"
 set "PY=.venv\Scripts\python.exe"
 
 if "%~1"=="" goto :all

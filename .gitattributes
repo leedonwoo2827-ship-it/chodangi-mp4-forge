@@ -1,0 +1,13 @@
+# cmd.exe 는 LF 배치파일에서 바이트 위치 추적이 깨진다(where python >nul 오작동 등).
+# 어떤 PC 에서 clone 하든 배치/PS 스크립트는 CRLF 로 체크아웃되게 강제한다.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# 그 외 텍스트는 저장소 LF 로 정규화(플랫폼별 체크아웃은 core.autocrlf 를 따른다)
+*.py   text
+*.md   text
+*.json text
+*.html text
+*.css  text
+*.js   text

@@ -82,16 +82,23 @@ def _num_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
 
 
 def countdown_frames(base_png: str | Path, seconds: int) -> list[Image.Image]:
-    """캡처한 문제 슬라이드(밝음) 위에 5→1 큰 숫자를 얹은 프레임(각 1초)."""
+    """캡처한 문제 슬라이드(밝음) 위에 5→1 카운트다운을 '우하단에 작게' 얹은 프레임(각 1초).
+
+    문제를 가리지 않도록 전체 화면을 어둡게 하지 않고, 우하단 원형 배지만 올린다.
+    (#2 _deck.css 의 .slide.countdown 우하단 규약과 일치)
+    """
     base = Image.open(base_png).convert("RGB").resize((SLIDE_W, SLIDE_H))
-    font = _num_font(360)
+    font = _num_font(150)
+    r = 110
+    margin = 72
+    cx, cy = SLIDE_W - margin - r, SLIDE_H - margin - r
     frames: list[Image.Image] = []
     for n in range(int(seconds), 0, -1):
         im = base.copy()
         d = ImageDraw.Draw(im, "RGBA")
-        d.rectangle([0, 0, SLIDE_W, SLIDE_H], fill=(15, 23, 42, 110))
-        cx, cy, r = SLIDE_W // 2, SLIDE_H // 2, 270
-        d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(255, 255, 255, 235))
+        # 전체 스크림 없음 — 문제는 그대로 보인다. 우하단에 그림자 + 흰 원 배지만.
+        d.ellipse([cx - r - 6, cy - r - 6, cx + r + 6, cy + r + 6], fill=(15, 23, 42, 70))
+        d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(255, 255, 255, 240))
         text = str(n)
         bbox = d.textbbox((0, 0), text, font=font)
         tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
