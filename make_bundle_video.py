@@ -134,7 +134,53 @@ def _wav_dur(path: Path) -> float:
         return 0.0
 
 
-def build(book: Path, round_code: str, do_audio: bool, keep_scratch: bool) -> Path | None:
+# deck.html 의 `.slide` 를 브라우저 없이 세기 위한 패턴.
+# capture_deck() 의 page.query_selector_all(".slide") 와 같은 수를 노린다.
+# (class 목록 중간에 있어도, 작은따옴표여도 매치.)
+_SLIDE_TAG = re.compile(
+    r"""class\s*=\s*(?P<q>["'])(?:[^"']*\s)?slide(?:\s[^"']*)?(?P=q)""", re.I)
+
+
+def _count_deck_slides(deck: Path) -> int:
+    """deck.html 의 .slide 개수. 파싱 실패/오류면 0(호출부에서 '검증 생략')."""
+    try:
+        return len(_SLIDE_TAG.findall(deck.read_text(encoding="utf-8", errors="ignore")))
+    except OSError:
+        return 0
+
+
+def _reuse_capture_images(b05: Path, scratch: Path, cap_recs: list[dict]) -> int:
+    """05/<회차>/images/slide_NN.png(0-based si) → scratch/images/<image_filename>.
+
+    캡처 씬이 하나라도 빠져 있으면 **아무것도 복사하지 않고 0** 을 돌려준다
+    (부분 복사는 이미지↔음성 정렬을 조용히 깨뜨리므로 금지). 0 = 캡처로 폴백.
+    """
+    src_dir = b05 / "images"
+    if not src_dir.is_dir():
+        print(f"[warn] --reuse-images: images 폴더가 없습니다: {src_dir}")
+        return 0
+    plan: list[tuple[Path, Path]] = []
+    missing: list[str] = []
+    for r in cap_recs:
+        src = src_dir / f"slide_{r['si']:02d}.png"
+        if src.exists():
+            plan.append((src, scratch / "images" / r["image_filename"]))
+        else:
+            missing.append(src.name)
+    if missing:
+        head = ", ".join(missing[:6])
+        more = f" 외 {len(missing) - 6}장" if len(missing) > 6 else ""
+        print(f"[warn] --reuse-images: 없는 슬라이드 {len(missing)}/{len(cap_recs)}장 "
+              f"({head}{more}) @ {src_dir}")
+        return 0
+    (scratch / "images").mkdir(parents=True, exist_ok=True)
+    for src, dst in plan:
+        shutil.copy2(src, dst)
+    return len(plan)
+
+
+def build(book: Path, round_code: str, do_audio: bool, keep_scratch: bool,
+          reuse_images: bool = False) -> Path | None:
     b05 = book / "05" / round_code
     series_path = b05 / "script" / f"{round_code}_script.json"
     deck = b05 / "source" / "deck.html"
@@ -154,24 +200,48 @@ def build(book: Path, round_code: str, do_audio: bool, keep_scratch: bool) -> Pa
     recs = _build_records(series, cid)
     n_cap = sum(1 for r in recs if r["capture"])
 
-    # 1) deck.html 캡처 → 캡처 씬 이미지
-    cap_files = [r["image_filename"] for r in recs if r["capture"]]
-    saved, deck_slides, overflow = deck_capture.capture_deck(deck, scratch / "images", cap_files)
-    print(f"[make] deck 캡처: {len(saved)}/{n_cap}  (deck .slide={deck_slides})")
-    if deck_slides != n_cap:
-        # 어긋나면 캡처가 앞에서부터 잘려 이미지↔음성 인덱스가 통째로 밀린다 → 중단.
-        raise SystemExit(
-            f"[error] deck 슬라이드({deck_slides}) ≠ 캡처 씬({n_cap}) — 슬라이드/씬 1:1 이 깨졌습니다.\n"
-            f"        이대로 만들면 이미지와 음성이 어긋난 영상이 나옵니다.\n"
-            f"        deck : {deck}\n"
-            f"        script: {series_path}\n"
-            f"        #2 에서 deck.html 과 script.json 을 같은 슬라이드 수로 다시 생성하세요\n"
-            f"        (페이지 분할로 슬라이드가 늘면 씬·narration_text 도 같이 늘어야 합니다).")
-    if overflow:
-        worst = ", ".join(f"{i+1}번째 +{px}px" for i, px in overflow[:8])
-        more = f" 외 {len(overflow)-8}장" if len(overflow) > 8 else ""
-        print(f"[warn] 내용이 슬라이드(1080px)를 넘어 잘린 슬라이드 {len(overflow)}장: {worst}{more}")
-        print("       #2 build-deck 의 페이지 분할이 필요합니다(보기 4개는 반드시 전부 보여야 함).")
+    # 1) 캡처 씬 이미지 — 05/images 재사용(--reuse-images) 또는 deck.html 캡처
+    cap_recs = [r for r in recs if r["capture"]]
+    cap_files = [r["image_filename"] for r in cap_recs]
+    reused = _reuse_capture_images(b05, scratch, cap_recs) if reuse_images else 0
+    if reuse_images and not reused:
+        print("[warn] --reuse-images: 재사용할 수 없어 deck 캡처로 폴백합니다 "
+              "(이 경로는 playwright+chromium 이 필요합니다).")
+
+    if reused:
+        # 캡처를 건너뛰면 deck_slides != n_cap 검증이 사라진다.
+        # 브라우저 없이 같은 안전장치를 걸려고 deck.html 의 .slide 를 정적으로 센다.
+        deck_slides = _count_deck_slides(deck)
+        print(f"[make] 이미지 재사용: {reused}/{n_cap}  "
+              f"(deck .slide={deck_slides or '?'}, 캡처 생략)")
+        if reused != n_cap or (deck_slides and deck_slides != n_cap):
+            raise SystemExit(
+                f"[error] 재사용 이미지({reused})·deck 슬라이드({deck_slides}) ≠ 캡처 씬({n_cap})"
+                f" — 슬라이드/씬 1:1 이 깨졌습니다.\n"
+                f"        이대로 만들면 이미지와 음성이 어긋난 영상이 나옵니다.\n"
+                f"        images: {b05 / 'images'}\n"
+                f"        deck  : {deck}\n"
+                f"        script: {series_path}\n"
+                f"        --reuse-images 없이 다시 렌더(캡처)하거나, #2 에서 05 번들을 재생성하세요.")
+        if not deck_slides:
+            print("[warn] deck.html 의 .slide 를 세지 못해 슬라이드/씬 정렬 검증을 생략했습니다.")
+    else:
+        saved, deck_slides, overflow = deck_capture.capture_deck(deck, scratch / "images", cap_files)
+        print(f"[make] deck 캡처: {len(saved)}/{n_cap}  (deck .slide={deck_slides})")
+        if deck_slides != n_cap:
+            # 어긋나면 캡처가 앞에서부터 잘려 이미지↔음성 인덱스가 통째로 밀린다 → 중단.
+            raise SystemExit(
+                f"[error] deck 슬라이드({deck_slides}) ≠ 캡처 씬({n_cap}) — 슬라이드/씬 1:1 이 깨졌습니다.\n"
+                f"        이대로 만들면 이미지와 음성이 어긋난 영상이 나옵니다.\n"
+                f"        deck : {deck}\n"
+                f"        script: {series_path}\n"
+                f"        #2 에서 deck.html 과 script.json 을 같은 슬라이드 수로 다시 생성하세요\n"
+                f"        (페이지 분할로 슬라이드가 늘면 씬·narration_text 도 같이 늘어야 합니다).")
+        if overflow:
+            worst = ", ".join(f"{i+1}번째 +{px}px" for i, px in overflow[:8])
+            more = f" 외 {len(overflow)-8}장" if len(overflow) > 8 else ""
+            print(f"[warn] 내용이 슬라이드(1080px)를 넘어 잘린 슬라이드 {len(overflow)}장: {worst}{more}")
+            print("       #2 build-deck 의 페이지 분할이 필요합니다(보기 4개는 반드시 전부 보여야 함).")
 
     # 2) 카운트다운/간격 프레임·클립 (밝게)
     ffmpeg_ok = shutil.which("ffmpeg") is not None
@@ -346,6 +416,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--round", default="", help="회차코드 (예: m01-1). 생략 시 05/ 아래 모든 회차")
     p.add_argument("--no-audio", action="store_true", help="음성/합성 생략(슬라이드 캡처만)")
     p.add_argument("--keep-scratch", action="store_true", help="munje/ 스크래치 번들 유지(디버그)")
+    p.add_argument("--reuse-images", action="store_true",
+                   help="deck 캡처 대신 05/<회차>/images/slide_NN.png 재사용 "
+                        "(playwright/chromium 불필요). 한 장이라도 없으면 캡처로 자동 폴백")
     p.add_argument("--force", action="store_true",
                    help="전체 스캔 시 이미 만들어진 번들도 다시 렌더(기본: 미완성만)")
     args = p.parse_args(argv)
@@ -355,13 +428,13 @@ def main(argv: list[str] | None = None) -> int:
         for raw in args.paths:
             book, rc = _resolve_book_round(Path(raw))
             print(f"[drop] {raw} → book={book} round={rc}")
-            build(book, rc, not args.no_audio, args.keep_scratch)
+            build(book, rc, not args.no_audio, args.keep_scratch, args.reuse_images)
         return 0
 
     book = Path(args.book).resolve()
     if args.round:
         # 회차 명시 = 항상 렌더
-        build(book, args.round, not args.no_audio, args.keep_scratch)
+        build(book, args.round, not args.no_audio, args.keep_scratch, args.reuse_images)
         return 0
 
     # 전체 스캔: 05/ 아래 모든 번들. 기본은 '미완성만'(static.mp4 없는 것), --force 면 전부.
@@ -376,7 +449,7 @@ def main(argv: list[str] | None = None) -> int:
         if done and not args.force and not args.no_audio:
             skipped.append(rc)
             continue
-        build(book, rc, not args.no_audio, args.keep_scratch)
+        build(book, rc, not args.no_audio, args.keep_scratch, args.reuse_images)
         made += 1
     if skipped:
         print(f"[skip] 이미 완료된 {len(skipped)}개 건너뜀: {', '.join(skipped)}")

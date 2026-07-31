@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 REM ==========================================================================
-REM  check.bat  --  build the 06 answer-check web (SQLD 문제집)
+REM  check.bat  --  build the 06 answer-check web (SQLD workbook)
 REM
 REM  Reads 05\*\source\lesson_*.json + 03 theory, and writes <book>\06\ :
 REM    check.html, problems.js, videos.js, theory.js, theory_content.js(baked),

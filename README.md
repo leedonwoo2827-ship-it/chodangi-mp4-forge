@@ -1,26 +1,48 @@
 # 초당기(chodangi) MP4 — 이 PC 커스텀 빌드
 
-> 이 폴더는 `ocr-output-260723\04\lesson_mXX.json` 을 입력으로 받아 **웹 UI 없이 배치 한 방**으로
+> 이 폴더는 책 루트의 `05\<회차>\` 번들(#2 산출물)을 입력으로 받아 **웹 UI 없이 배치 한 방**으로
 > 해설영상(mp4)을 뽑도록 커스터마이징한 설치본입니다. (원본 README 는 아래에 그대로 둡니다.)
 
 ## 배치로 한 번에 (권장 경로)
 ```bat
-render.bat                      REM m01, m02, m03 전체 → munje\chNN\draft\chNN_final.mp4 3개
-render.bat m01                  REM m01 한 개만
-render.bat m02 --max-problems 2 REM 앞 2문제만 빠른 테스트(mp4 생성)
-render.bat m01 --no-audio       REM 음성 없이 슬라이드만
+render.bat                      REM 05\ 아래 미완성 번들 전부 (--force 면 전부 재렌더)
+render.bat m01-1                REM 한 회차만
+render.bat m01-1 --no-audio     REM 음성/합성 없이 슬라이드만
+render.bat --reuse-images       REM 05\<회차>\images 재사용 → Chromium 없이 렌더
+render.bat --help               REM 전체 플래그
 ```
-- 파이프라인: `lesson JSON → 대본 컴파일 → 슬라이드(+54321 카운트다운) → Supertonic3 음성/자막 → mp4maker(ffmpeg)`.
-- 단계별 세부 점검: `.venv\Scripts\python -m slides munje\ch01` / `... -m mp4maker munje\ch01` / `python make_video.py --help`.
+- 파이프라인: `05 번들(deck.html + script.json) → headless Chromium 캡처(+54321 카운트다운)
+  → Supertonic3 음성/자막 → mp4maker(ffmpeg)`.
+- 출력: `<book>\05\<회차>\draft\<회차>.static.mp4` (+ `.ko.vtt`, `review.json` 갱신).
+  중간 산출물은 저장소의 `munje\chNN\` 에 쌓였다가 자동 삭제(`--keep-scratch` 로 보존).
 
-## 두 가지 슬라이드 경로 (밝은 deck.html 권장)
-| 경로 | 배치 | 슬라이드 | 입력 | 출력 |
-|---|---|---|---|---|
-| **deck (권장·밝음)** | `render-deck.bat m01` | exambook-forge가 집필한 밝은 `deck.html`을 headless Chromium 캡처 | `05\<회차>\`(source/deck.html + script/_series + review.json) | `05\<회차>\draft\<회차>.static.mp4` + review.json 갱신 |
-| legacy (Pillow·어두움) | `render.bat m01` | Pillow 로 직접 렌더 | `04\lesson_mNN.json` | `munje\chNN\draft` + `05\mNN.mp4` |
+### 책 트리에서 바로 돌리기 (copy-and-run)
+`render.bat` **한 파일을 책 루트(05\ 를 품은 폴더)에 복사해 더블클릭**하면 그 책 전체가 렌더됩니다.
+스캔할 때마다 `ocr-output-<날짜>` 폴더가 새로 생기므로 이 방식이 기본입니다.
+```bat
+copy D:\00work\260724-chodangi-mp4\render.bat D:\00work\ocr-output-260730\
+REM 이제 D:\00work\ocr-output-260730\render.bat 을 더블클릭
+```
+- 저장소 자동탐지 순서: `%CHODANGI_HOME%` → `..\*chodangi*` → `D:\00work\260724-chodangi-mp4`.
+  후보는 `.venv\Scripts\python.exe` 와 `make_bundle_video.py` 를 **둘 다** 가져야 인정됩니다.
+- 못 찾으면 한 번만: `setx CHODANGI_HOME "D:\00work\260724-chodangi-mp4"` → **새 창**에서 재실행.
+- 예전 방식(저장소 옆 `work\05\` 에 번들 복사)도 그대로 동작합니다.
+  단 책 루트에 복사된 상태에서는 `work\05\` 를 보지 않습니다(BOOK = 자기 폴더).
+- 폴더 경로에 `!` 를 쓰지 마세요 — 배치의 지연확장이 먹어버립니다.
 
-- deck 경로 전제: **먼저 #2에서** `python scripts\bundle.py --book <book> --round m01` 로 `05\m01\` 번들 생성.
-- deck 경로 준비물(추가): `python -m playwright install chromium` (setup.bat 이 자동 시도).
+### 집 PC (Chromium 없이)
+`--reuse-images` 는 `05\<회차>\images\slide_NN.png` 를 그대로 쓰고 deck 캡처를 건너뜁니다.
+playwright/chromium 불필요 — **ffmpeg + `requirements-render.txt`** 만 있으면 됩니다.
+한 장이라도 없으면 경고 후 캡처로 자동 폴백하며, `deck.html` 의 `.slide` 수와 캡처 씬 수가
+다르면 중단합니다(이미지↔음성이 통째로 밀린 영상 방지).
+
+## 슬라이드 소스 = deck.html (밝은 슬라이드)
+- `render.bat` 은 #2(exambook-forge)가 집필한 `05\<회차>\source\deck.html` 을 headless Chromium 으로
+  캡처합니다. Pillow 로 직접 그리던 어두운 슬라이드는 카운트다운/간격 프레임에만 남아 있습니다.
+- 전제: **먼저 #2에서** `python scripts\bundle.py --book <book> --round m01` 로 `05\<회차>\` 번들 생성.
+- 준비물(추가): `python -m playwright install chromium` (setup.bat 이 자동 시도).
+  `--reuse-images` 를 쓰면 이 준비물이 필요 없습니다.
+- 디자인 빠른 미리보기: `05\<회차>\source\deck.html` 을 브라우저로 열기.
 - **일반영상(static) 다음 = 리모션(키네틱)**: 클로드 데스크탑에서 `05\<회차>\script\<회차>_script.json`(_series)로
   `draft\<회차>.motion.mp4` 생성 → `review.json.motionVideo` 갱신. 무거운 리모션 작업파일은 책 루트 밖.
 - 출력구조 단일 진실: exambook-forge `references/pipeline-output-structure.md`.
@@ -57,7 +79,8 @@ render.bat m01 --no-audio       REM 음성 없이 슬라이드만
 3. **[2 이미지]** → **[🖼 슬라이드 생성]** → 헤더 **[⚡ 한 번에 만들기]**
 4. **[4 결과]** 미리보기/다운로드  (요약노트 탭은 이 빌드에서 제거됨)
 
-문제집 JSON은 `ocr-output-260723\04\lesson_mXX.json` 형식(스키마는 `_context\HANDOFF-to-pipeline2.md` 참고).
+문제집 JSON은 `<book>\04\lesson_mXX.json` 형식(스키마는 `_context\HANDOFF-to-pipeline2.md` 참고 —
+`_context\` 는 .gitignore 대상이라 clone 한 PC 에는 없습니다. 필요하면 따로 복사하세요).
 `include_lecture:false`면 영상은 문제만, `round`/`source_no`로 기출 출처 표기.
 
 ## 두 가지 실행 경로
